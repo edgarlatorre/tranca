@@ -167,6 +167,22 @@ defmodule Tranca.Game do
   end
 
   @doc """
+  Awards a +100 point bonus for each red 3 that has been melded to the table.
+
+  Bonuses are applied per team.
+  """
+  @spec apply_red_three_bonus(t()) :: t()
+  def apply_red_three_bonus(%__MODULE__{} = game) do
+    teams =
+      Map.new(game.teams, fn {team_id, team} ->
+        bonus = red_three_bonus(team)
+        {team_id, %{team | score: team.score + bonus}}
+      end)
+
+    %{game | teams: teams}
+  end
+
+  @doc """
   Draws the top card from the deck for the given player.
   """
   @spec draw_from_deck(t(), String.t()) :: {:ok, t()} | {:error, atom()}
@@ -296,6 +312,12 @@ defmodule Tranca.Game do
     |> Enum.filter(&(&1.team == team_id))
     |> Enum.flat_map(&Player.black_threes/1)
     |> Enum.reduce(0, fn _, acc -> acc - 100 end)
+  end
+
+  defp red_three_bonus(team) do
+    team.melds
+    |> Enum.flat_map(&Meld.red_threes/1)
+    |> Enum.reduce(0, fn _, acc -> acc + 100 end)
   end
 
   defp validate_discard_not_blocked(%__MODULE__{discard_pile: [top | _]}) do

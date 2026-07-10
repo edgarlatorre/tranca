@@ -77,6 +77,14 @@ defmodule Tranca.Game.Meld do
   end
 
   @doc """
+  Returns the list of red three cards in the meld.
+  """
+  @spec red_threes(t()) :: [Card.t()]
+  def red_threes(%__MODULE__{cards: cards}) do
+    Enum.filter(cards, &Card.red_three?/1)
+  end
+
+  @doc """
   Returns the total point value of the cards in the meld.
   """
   @spec points(t()) :: integer()

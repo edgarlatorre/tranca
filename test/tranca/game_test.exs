@@ -4,6 +4,7 @@ defmodule Tranca.GameTest do
 
   alias Tranca.Game
   alias Tranca.Game.Card
+  alias Tranca.Game.Meld
   alias Tranca.Game.Team
 
   describe "new/2" do
@@ -421,6 +422,41 @@ defmodule Tranca.GameTest do
       game = Game.apply_black_three_penalties(game)
 
       assert game.teams.a.score == -100
+    end
+  end
+
+  describe "apply_red_three_bonus/1" do
+    test "awards +100 for each red three in a team's melds" do
+      game = started_game()
+
+      red_three_meld =
+        Meld.new([
+          Card.new("r3-1", :three, :hearts, 5),
+          Card.new("r3-2", :three, :diamonds, 5),
+          Card.new("b3", :three, :spades, 5)
+        ])
+
+      game = put_in(game.teams.a.melds, [red_three_meld])
+      game = Game.apply_red_three_bonus(game)
+
+      assert game.teams.a.score == 200
+      assert game.teams.b.score == 0
+    end
+
+    test "ignores black threes and other cards in melds" do
+      game = started_game()
+
+      meld =
+        Meld.new([
+          Card.new("b3", :three, :spades, 5),
+          Card.new("seven", :seven, :hearts, 5),
+          Card.new("seven2", :seven, :diamonds, 5)
+        ])
+
+      game = put_in(game.teams.a.melds, [meld])
+      game = Game.apply_red_three_bonus(game)
+
+      assert game.teams.a.score == 0
     end
   end
 
