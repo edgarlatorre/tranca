@@ -24,6 +24,7 @@ defmodule Tranca.Game do
           morto: [Card.t()],
           discard_pile: [Card.t()],
           turn: integer(),
+          drawn_this_turn: boolean(),
           round: integer(),
           winner: Team.id() | nil
         }
@@ -38,6 +39,7 @@ defmodule Tranca.Game do
     :morto,
     :discard_pile,
     :turn,
+    :drawn_this_turn,
     :round,
     :winner
   ]
@@ -60,6 +62,7 @@ defmodule Tranca.Game do
       morto: [],
       discard_pile: [],
       turn: 0,
+      drawn_this_turn: false,
       round: 1,
       winner: nil
     }
@@ -119,7 +122,8 @@ defmodule Tranca.Game do
          morto: morto,
          deck: deck,
          discard_pile: [discard_top],
-         turn: 0
+         turn: 0,
+         drawn_this_turn: false
      }}
   end
 
@@ -128,6 +132,85 @@ defmodule Tranca.Game do
 
   def start(%__MODULE__{}, _seed),
     do: {:error, :game_already_started}
+
+  @doc """
+  Draws the top card from the deck for the given player.
+  """
+  @spec draw_from_deck(t(), String.t()) :: {:ok, t()} | {:error, atom()}
+  def draw_from_deck(%__MODULE__{status: :playing} = game, player_id) do
+    with :ok <- validate_turn(game, player_id),
+         :ok <- validate_not_drawn(game),
+         {card, deck} <- List.pop_at(game.deck, 0) do
+      if card do
+        game = give_card_to_player(game, player_id, card)
+        {:ok, %{game | deck: deck, drawn_this_turn: true}}
+      else
+        {:error, :empty_deck}
+      end
+    end
+  end
+
+  def draw_from_deck(%__MODULE__{}, _player_id),
+    do: {:error, :game_not_playing}
+
+  @doc """
+  Draws the top card from the discard pile for the given player.
+
+  Drawing is blocked when the top card is a black three.
+  """
+  @spec draw_from_discard(t(), String.t()) :: {:ok, t()} | {:error, atom()}
+  def draw_from_discard(%__MODULE__{status: :playing} = game, player_id) do
+    with :ok <- validate_turn(game, player_id),
+         :ok <- validate_not_drawn(game),
+         :ok <- validate_discard_not_blocked(game),
+         {card, discard_pile} <- List.pop_at(game.discard_pile, 0) do
+      if card do
+        game = give_card_to_player(game, player_id, card)
+        {:ok, %{game | discard_pile: discard_pile, drawn_this_turn: true}}
+      else
+        {:error, :empty_discard_pile}
+      end
+    end
+  end
+
+  def draw_from_discard(%__MODULE__{}, _player_id),
+    do: {:error, :game_not_playing}
+
+  defp validate_turn(game, player_id) do
+    current_player = Enum.at(game.players, game.turn)
+
+    if current_player && current_player.id == player_id do
+      :ok
+    else
+      {:error, :not_your_turn}
+    end
+  end
+
+  defp validate_not_drawn(%__MODULE__{drawn_this_turn: false}), do: :ok
+  defp validate_not_drawn(%__MODULE__{}), do: {:error, :already_drew}
+
+  defp validate_discard_not_blocked(%__MODULE__{discard_pile: [top | _]}) do
+    if Card.black_three?(top) do
+      {:error, :discard_blocked_by_black_three}
+    else
+      :ok
+    end
+  end
+
+  defp validate_discard_not_blocked(%__MODULE__{}), do: :ok
+
+  defp give_card_to_player(game, player_id, card) do
+    players =
+      Enum.map(game.players, fn player ->
+        if player.id == player_id do
+          %{player | hand: [card | player.hand]}
+        else
+          player
+        end
+      end)
+
+    %{game | players: players}
+  end
 
   defp deal_players(cards, [], dealt_players), do: {Enum.reverse(dealt_players), cards}
 
