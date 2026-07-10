@@ -27,6 +27,7 @@ defmodule Tranca.Game do
           turn: integer(),
           drawn_this_turn: boolean(),
           round: integer(),
+          target_score: integer(),
           winner: Team.id() | nil
         }
 
@@ -42,6 +43,7 @@ defmodule Tranca.Game do
     :turn,
     :drawn_this_turn,
     :round,
+    :target_score,
     :winner
   ]
 
@@ -65,6 +67,7 @@ defmodule Tranca.Game do
       turn: 0,
       drawn_this_turn: false,
       round: 1,
+      target_score: 3000,
       winner: nil
     }
   end
@@ -167,7 +170,7 @@ defmodule Tranca.Game do
   end
 
   @doc """
-  Awards a +100 point bonus for each red 3 that has been melded to the table.
+  Applies a +100 point bonus for each red 3 that has been melded to the table.
 
   Bonuses are applied per team.
   """
@@ -180,6 +183,43 @@ defmodule Tranca.Game do
       end)
 
     %{game | teams: teams}
+  end
+
+  @doc """
+  Scores the current hand and updates each team's total score.
+
+  Includes meld card values, canastra bonuses, red 3 bonuses, and black 3
+  penalties. If a team reaches the target score, the game is finished.
+  """
+  @spec score_round(t()) :: t()
+  def score_round(%__MODULE__{} = game) do
+    game = apply_black_three_penalties(game) |> apply_red_three_bonus()
+
+    teams =
+      Map.new(game.teams, fn {team_id, team} ->
+        round_score = team_round_score(game, team_id)
+        {team_id, %{team | score: team.score + round_score}}
+      end)
+
+    game = %{game | teams: teams}
+
+    case match_winner(game) do
+      {:ok, winner} -> finish(game, winner)
+      :none -> game
+    end
+  end
+
+  @doc """
+  Returns the team ID that has reached the target score, or :none.
+  """
+  @spec match_winner(t()) :: {:ok, Team.id()} | :none
+  def match_winner(%__MODULE__{target_score: target_score, teams: teams}) do
+    teams
+    |> Enum.find(fn {_id, team} -> team.score >= target_score end)
+    |> case do
+      {team_id, _team} -> {:ok, team_id}
+      nil -> :none
+    end
   end
 
   @doc """
@@ -364,6 +404,23 @@ defmodule Tranca.Game do
     team.melds
     |> Enum.flat_map(&Meld.red_threes/1)
     |> Enum.reduce(0, fn _, acc -> acc + 100 end)
+  end
+
+  defp team_round_score(game, team_id) do
+    team = game.teams[team_id]
+
+    meld_points = Enum.reduce(team.melds, 0, &(&2 + Meld.points(&1)))
+
+    canastra_bonus =
+      Enum.reduce(team.melds, 0, fn meld, acc ->
+        case meld.type do
+          :limpa -> acc + 500
+          :suja -> acc + 300
+          :normal -> acc
+        end
+      end)
+
+    meld_points + canastra_bonus
   end
 
   defp validate_discard_not_blocked(%__MODULE__{discard_pile: [top | _]}) do

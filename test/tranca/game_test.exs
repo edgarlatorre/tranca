@@ -22,6 +22,7 @@ defmodule Tranca.GameTest do
       assert game.turn == 0
       refute game.drawn_this_turn
       assert game.round == 1
+      assert game.target_score == 3000
       assert game.winner == nil
     end
 
@@ -518,6 +519,103 @@ defmodule Tranca.GameTest do
       game = Game.apply_black_three_penalties(game)
 
       assert game.teams.a.score == -100
+    end
+  end
+
+  describe "score_round/1" do
+    test "scores meld points, canastra bonuses, red threes, and black threes" do
+      game = started_game()
+      [player_0, player_1] = Enum.sort_by(game.players, & &1.seat)
+
+      limpa =
+        Meld.new(
+          for {suit, i} <-
+                Enum.with_index([
+                  :hearts,
+                  :diamonds,
+                  :spades,
+                  :clubs,
+                  :hearts,
+                  :diamonds,
+                  :spades
+                ]) do
+            Card.new("limpa-#{i}", :seven, suit, 5)
+          end
+        )
+
+      suja =
+        Meld.new([
+          Card.new("suja-wild", :two, :spades, 20)
+          | for(
+              {suit, i} <-
+                Enum.with_index([:hearts, :diamonds, :spades, :clubs, :hearts, :diamonds]),
+              do: Card.new("suja-#{i}", :nine, suit, 5)
+            )
+        ])
+
+      red_three_meld =
+        Meld.new([
+          Card.new("r3", :three, :hearts, 5),
+          Card.new("seven-1", :seven, :hearts, 5),
+          Card.new("seven-2", :seven, :diamonds, 5)
+        ])
+
+      game =
+        game
+        |> put_in([Access.key(:teams), :a, Access.key(:melds)], [limpa, suja, red_three_meld])
+        |> update_player_hand_cards(player_0.id, [Card.new("b3", :three, :spades, 5)])
+        |> update_player_hand_cards(player_1.id, [Card.new("b3-2", :three, :clubs, 5)])
+
+      game = Game.score_round(game)
+
+      # Limpa: 7 * 5 + 500 = 535
+      # Suja: 6 * 5 + 20 + 300 = 350
+      # Red three meld: 3 * 5 + 100 = 115
+      # Black three penalty: -100
+      assert game.teams.a.score == 535 + 350 + 115 - 100
+      assert game.teams.b.score == -100
+    end
+
+    test "finishes the game when a team reaches the target score" do
+      game = started_game()
+
+      game = %{game | target_score: 500}
+
+      limpa =
+        Meld.new(
+          for {suit, i} <-
+                Enum.with_index([
+                  :hearts,
+                  :diamonds,
+                  :spades,
+                  :clubs,
+                  :hearts,
+                  :diamonds,
+                  :spades
+                ]) do
+            Card.new("limpa-#{i}", :seven, suit, 5)
+          end
+        )
+
+      game = put_in(game.teams.a.melds, [limpa])
+      game = Game.score_round(game)
+
+      assert game.status == :finished
+      assert game.winner == :a
+    end
+  end
+
+  describe "match_winner/1" do
+    test "returns the winning team when target score is reached" do
+      game = started_game()
+      game = put_in(game.teams.a.score, 3000)
+
+      assert Game.match_winner(game) == {:ok, :a}
+    end
+
+    test "returns :none when no team has reached the target" do
+      game = started_game()
+      assert Game.match_winner(game) == :none
     end
   end
 
