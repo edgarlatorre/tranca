@@ -8,6 +8,7 @@ defmodule Tranca.Game do
   """
 
   alias Tranca.Game.Card
+  alias Tranca.Game.Meld
   alias Tranca.Game.Player
   alias Tranca.Game.Team
 
@@ -199,6 +200,37 @@ defmodule Tranca.Game do
   def discard(%__MODULE__{}, _player_id, _card_id),
     do: {:error, :game_not_playing}
 
+  @doc """
+  Lays down a meld from the player's hand to their team's meld area.
+
+  The selected cards must form a valid meld (three or more cards of the
+  same rank, with at least one natural card).
+  """
+  @spec meld(t(), String.t(), [String.t()]) :: {:ok, t()} | {:error, atom()}
+  def meld(%__MODULE__{status: :playing} = game, player_id, card_ids)
+      when is_list(card_ids) do
+    with :ok <- validate_turn(game, player_id),
+         :ok <- validate_drawn(game),
+         {:ok, cards, hand} <- remove_cards_from_hand(game, player_id, card_ids),
+         true <- Meld.valid?(Meld.new(cards)) do
+      meld = Meld.new(cards)
+      current_player = Enum.at(game.players, game.turn)
+
+      game =
+        game
+        |> update_player_hand(player_id, hand)
+        |> add_meld_to_team(current_player.team, meld)
+
+      {:ok, game}
+    else
+      false -> {:error, :invalid_meld}
+      error -> error
+    end
+  end
+
+  def meld(%__MODULE__{}, _player_id, _card_ids),
+    do: {:error, :game_not_playing}
+
   defp validate_turn(game, player_id) do
     current_player = Enum.at(game.players, game.turn)
 
@@ -239,16 +271,31 @@ defmodule Tranca.Game do
   end
 
   defp remove_card_from_hand(game, player_id, card_id) do
+    case remove_cards_from_hand(game, player_id, [card_id]) do
+      {:ok, [card], hand} -> {:ok, card, hand}
+      error -> error
+    end
+  end
+
+  defp remove_cards_from_hand(game, player_id, card_ids) do
     player = Enum.at(game.players, game.turn)
 
     if player && player.id == player_id do
-      case Enum.split_with(player.hand, &(&1.id == card_id)) do
-        {[card], rest} -> {:ok, card, rest}
-        {_, _rest} -> {:error, :card_not_in_hand}
+      {removed, remaining} = Enum.split_with(player.hand, &(&1.id in card_ids))
+
+      if length(removed) == length(card_ids) and unique_ids?(removed, card_ids) do
+        {:ok, removed, remaining}
+      else
+        {:error, :card_not_in_hand}
       end
     else
       {:error, :not_your_turn}
     end
+  end
+
+  defp unique_ids?(cards, card_ids) do
+    ids = Enum.map(cards, & &1.id)
+    length(ids) == length(Enum.uniq(ids)) and length(ids) == length(card_ids)
   end
 
   defp update_player_hand(game, player_id, hand) do
@@ -266,6 +313,15 @@ defmodule Tranca.Game do
 
   defp add_card_to_discard(game, card) do
     %{game | discard_pile: [card | game.discard_pile]}
+  end
+
+  defp add_meld_to_team(game, team_id, meld) do
+    teams =
+      Map.update!(game.teams, team_id, fn team ->
+        %{team | melds: team.melds ++ [meld]}
+      end)
+
+    %{game | teams: teams}
   end
 
   defp advance_turn(game) do

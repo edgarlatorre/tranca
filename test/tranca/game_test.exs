@@ -251,6 +251,59 @@ defmodule Tranca.GameTest do
     end
   end
 
+  describe "meld/3" do
+    test "lays down a valid meld and removes cards from hand" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      [_card_1, _card_2, card_3 | rest] = current_player.hand
+
+      # Replace three cards with matching ranks for a deterministic meld.
+      matching_cards = [
+        Card.new("meld-1", :seven, :hearts, 5),
+        Card.new("meld-2", :seven, :diamonds, 5),
+        Card.new("meld-3", :seven, :spades, 5)
+      ]
+
+      game = update_player_hand_cards(game, current_player.id, matching_cards ++ [card_3 | rest])
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      meld_ids = Enum.map(matching_cards, & &1.id)
+      assert {:ok, game} = Game.meld(game, current_player.id, meld_ids)
+
+      current_player = Enum.at(game.players, game.turn)
+      refute Enum.any?(current_player.hand, &(&1.id in meld_ids))
+      assert length(game.teams.a.melds) == 1
+    end
+
+    test "rejects an invalid meld" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      [card_1, card_2, card_3 | _rest] = current_player.hand
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:error, :invalid_meld} =
+               Game.meld(game, current_player.id, [card_1.id, card_2.id, card_3.id])
+    end
+
+    test "rejects melding before drawing" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      [card_1, card_2, card_3 | _rest] = current_player.hand
+
+      assert {:error, :must_draw_first} =
+               Game.meld(game, current_player.id, [card_1.id, card_2.id, card_3.id])
+    end
+
+    test "rejects melding out of turn" do
+      game = started_game()
+      other_player = Enum.at(game.players, 1)
+
+      assert {:error, :not_your_turn} = Game.meld(game, other_player.id, ["x", "y", "z"])
+    end
+  end
+
   defp add_players(game, players) do
     Enum.reduce(players, game, fn {user_id, seat, team}, acc ->
       {:ok, updated} = Game.add_player(acc, user_id, seat, team)
@@ -265,5 +318,18 @@ defmodule Tranca.GameTest do
       {:ok, game} = Game.start(game, 42)
       game
     end)
+  end
+
+  defp update_player_hand_cards(game, player_id, new_hand) do
+    players =
+      Enum.map(game.players, fn player ->
+        if player.id == player_id do
+          %{player | hand: new_hand}
+        else
+          player
+        end
+      end)
+
+    %{game | players: players}
   end
 end
