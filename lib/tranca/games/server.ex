@@ -65,55 +65,61 @@ defmodule Tranca.Games.Server do
 
   def handle_call({:add_player, user_id, seat, team}, _from, state) do
     case Game.add_player(state.game, user_id, seat, team) do
-      {:ok, game} -> {:reply, {:ok, game}, %{state | game: game}}
+      {:ok, game} -> broadcast_and_reply(state, game)
       error -> {:reply, error, state}
     end
   end
 
   def handle_call({:start, seed}, _from, state) do
     case Game.start(state.game, seed) do
-      {:ok, game} -> {:reply, {:ok, game}, %{state | game: game}}
+      {:ok, game} -> broadcast_and_reply(state, game)
       error -> {:reply, error, state}
     end
   end
 
   def handle_call({:draw_from_deck, player_id}, _from, state) do
     case Game.draw_from_deck(state.game, player_id) do
-      {:ok, game} -> {:reply, {:ok, game}, %{state | game: game}}
+      {:ok, game} -> broadcast_and_reply(state, game)
       error -> {:reply, error, state}
     end
   end
 
   def handle_call({:draw_from_discard, player_id}, _from, state) do
     case Game.draw_from_discard(state.game, player_id) do
-      {:ok, game} -> {:reply, {:ok, game}, %{state | game: game}}
+      {:ok, game} -> broadcast_and_reply(state, game)
       error -> {:reply, error, state}
     end
   end
 
   def handle_call({:discard, player_id, card_id}, _from, state) do
     case Game.discard(state.game, player_id, card_id) do
-      {:ok, game} -> {:reply, {:ok, game}, %{state | game: game}}
+      {:ok, game} -> broadcast_and_reply(state, game)
       error -> {:reply, error, state}
     end
   end
 
   def handle_call({:meld, player_id, card_ids}, _from, state) do
     case Game.meld(state.game, player_id, card_ids) do
-      {:ok, game} -> {:reply, {:ok, game}, %{state | game: game}}
+      {:ok, game} -> broadcast_and_reply(state, game)
       error -> {:reply, error, state}
     end
   end
 
   def handle_call({:replace_joker, player_id, meld_index, card_id}, _from, state) do
     case Game.replace_joker(state.game, player_id, meld_index, card_id) do
-      {:ok, game} -> {:reply, {:ok, game}, %{state | game: game}}
+      {:ok, game} -> broadcast_and_reply(state, game)
       error -> {:reply, error, state}
     end
   end
 
   def handle_call(:score_round, _from, state) do
     game = Game.score_round(state.game)
+    broadcast_and_reply(state, game)
+  end
+
+  defp broadcast_and_reply(state, game) do
+    topic = "game:#{state.game_id}"
+    Phoenix.PubSub.broadcast(Tranca.PubSub, topic, {:game_updated, game})
     {:reply, {:ok, game}, %{state | game: game}}
   end
 

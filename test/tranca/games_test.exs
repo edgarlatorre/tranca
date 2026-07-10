@@ -97,6 +97,28 @@ defmodule Tranca.GamesTest do
 
       assert {:ok, _game} = Games.score_round(game_id)
     end
+
+    test "broadcasts game updates on successful moves", %{game_id: game_id} do
+      Phoenix.PubSub.subscribe(Tranca.PubSub, "game:#{game_id}")
+
+      assert {:ok, game} = Games.add_player(game_id, "user-1", 0, :a)
+      assert_receive {:game_updated, ^game}
+
+      assert {:ok, game} = Games.add_player(game_id, "user-2", 1, :b)
+      assert_receive {:game_updated, ^game}
+    end
+
+    test "does not broadcast on failed moves", %{game_id: game_id} do
+      {:ok, _game} = Games.add_player(game_id, "user-1", 0, :a)
+      {:ok, _game} = Games.add_player(game_id, "user-2", 1, :b)
+      {:ok, game} = Games.start(game_id, 42)
+
+      Phoenix.PubSub.subscribe(Tranca.PubSub, "game:#{game_id}")
+
+      other_player = Enum.at(game.players, 1)
+      assert {:error, :not_your_turn} = Games.draw_from_deck(game_id, other_player.id)
+      refute_receive {:game_updated, _}
+    end
   end
 
   defp update_player_hand(game, player_id, hand) do
