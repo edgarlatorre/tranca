@@ -130,4 +130,33 @@ defmodule Tranca.Game.Card do
   @spec red_three?(t()) :: boolean()
   def red_three?(%__MODULE__{rank: :three} = card), do: color(card) == :red
   def red_three?(%__MODULE__{}), do: false
+
+  @doc """
+  Shuffles the given cards randomly.
+  """
+  @spec shuffle([t()]) :: [t()]
+  def shuffle(cards) do
+    Enum.shuffle(cards)
+  end
+
+  @doc """
+  Shuffles the given cards deterministically using the provided seed.
+
+  Passing the same seed always produces the same order, which is useful
+  for reproducible tests.
+  """
+  @spec shuffle([t()], integer()) :: [t()]
+  def shuffle(cards, seed) when is_integer(seed) do
+    state = :rand.seed(:exsss, seed)
+
+    {pairs, _state} =
+      Enum.map_reduce(cards, state, fn card, current_state ->
+        {value, new_state} = :rand.uniform_s(current_state)
+        {{value, card}, new_state}
+      end)
+
+    pairs
+    |> Enum.sort_by(fn {value, _card} -> value end)
+    |> Enum.map(fn {_value, card} -> card end)
+  end
 end

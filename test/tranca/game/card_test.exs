@@ -100,4 +100,31 @@ defmodule Tranca.Game.CardTest do
       refute Card.red_three?(Card.new("1", :four, :hearts, 5))
     end
   end
+
+  describe "shuffle/1" do
+    test "returns all cards in a different order" do
+      deck = Card.deck()
+      shuffled = Card.shuffle(deck)
+
+      assert length(shuffled) == length(deck)
+      assert Enum.sort_by(shuffled, & &1.id) == Enum.sort_by(deck, & &1.id)
+      refute shuffled == deck
+    end
+  end
+
+  describe "shuffle/2" do
+    test "returns a deterministic order for the same seed" do
+      deck = Card.deck()
+
+      assert Card.shuffle(deck, 42) == Card.shuffle(deck, 42)
+    end
+
+    test "returns all cards in a different order than the original deck" do
+      deck = Card.deck()
+      shuffled = Card.shuffle(deck, 42)
+
+      assert length(shuffled) == length(deck)
+      refute shuffled == deck
+    end
+  end
 end
