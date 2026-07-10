@@ -203,6 +203,19 @@ defmodule Tranca.GameTest do
 
       assert {:error, :not_your_turn} = Game.draw_from_discard(game, other_player.id)
     end
+
+    test "rejects drawing when the game has not started" do
+      game = Game.new("game-1", 2)
+      assert {:error, :game_not_playing} = Game.draw_from_discard(game, "player-0")
+    end
+
+    test "rejects drawing when the discard pile is empty" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      game = %{game | discard_pile: []}
+
+      assert {:error, :empty_discard_pile} = Game.draw_from_discard(game, current_player.id)
+    end
   end
 
   describe "discard/3" do
