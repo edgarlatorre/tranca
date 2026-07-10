@@ -251,6 +251,107 @@ defmodule Tranca.GameTest do
     end
   end
 
+  describe "current_player/1" do
+    test "returns the player whose turn it is" do
+      game = started_game()
+      assert %Game.Player{seat: 0} = Game.current_player(game)
+    end
+
+    test "returns nil for a game with no players" do
+      game = Game.new("game-1", 2)
+      assert Game.current_player(game) == nil
+    end
+  end
+
+  describe "finish/2" do
+    test "marks the game as finished with a winner" do
+      game = started_game()
+      game = Game.finish(game, :a)
+
+      assert game.status == :finished
+      assert game.winner == :a
+    end
+
+    test "rejects invalid winners" do
+      game = started_game()
+
+      assert_raise FunctionClauseError, fn ->
+        Game.finish(game, :c)
+      end
+    end
+  end
+
+  describe "turn rotation" do
+    test "discard advances the turn to the next player" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      card_to_discard = hd(current_player.hand)
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+      {:ok, game} = Game.discard(game, current_player.id, card_to_discard.id)
+
+      assert game.turn == 1
+      assert Game.current_player(game).seat == 1
+    end
+
+    test "turn wraps around after the last player" do
+      game =
+        Game.new("game-1", 2)
+        |> add_players([{"user-1", 0, :a}, {"user-2", 1, :b}])
+        |> then(fn game ->
+          {:ok, game} = Game.start(game, 42)
+          game
+        end)
+
+      first_player = Enum.at(game.players, 0)
+      second_player = Enum.at(game.players, 1)
+
+      # First player's turn
+      first_card = hd(first_player.hand)
+      {:ok, game} = Game.draw_from_deck(game, first_player.id)
+      {:ok, game} = Game.discard(game, first_player.id, first_card.id)
+
+      # Second player's turn
+      second_card = hd(second_player.hand)
+      {:ok, game} = Game.draw_from_deck(game, second_player.id)
+      {:ok, game} = Game.discard(game, second_player.id, second_card.id)
+
+      assert game.turn == 0
+      assert Game.current_player(game).seat == 0
+    end
+  end
+
+  describe "status transitions" do
+    test "new game starts in waiting status" do
+      game = Game.new("game-1", 2)
+      assert game.status == :waiting
+    end
+
+    test "starting transitions from waiting to playing" do
+      game =
+        Game.new("game-1", 2)
+        |> add_players([{"user-1", 0, :a}, {"user-2", 1, :b}])
+
+      assert {:ok, game} = Game.start(game, 42)
+      assert game.status == :playing
+    end
+
+    test "actions are blocked while waiting" do
+      game = Game.new("game-1", 2)
+      assert {:error, :game_not_playing} = Game.draw_from_deck(game, "player-0")
+      assert {:error, :game_not_playing} = Game.discard(game, "player-0", "x")
+      assert {:error, :game_not_playing} = Game.meld(game, "player-0", ["x"])
+    end
+
+    test "actions are blocked when finished" do
+      game = started_game() |> Game.finish(:a)
+
+      assert {:error, :game_not_playing} = Game.draw_from_deck(game, "player-0")
+      assert {:error, :game_not_playing} = Game.discard(game, "player-0", "x")
+      assert {:error, :game_not_playing} = Game.meld(game, "player-0", ["x"])
+    end
+  end
+
   describe "meld/3" do
     test "lays down a valid meld and removes cards from hand" do
       game = started_game()

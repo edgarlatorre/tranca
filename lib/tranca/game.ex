@@ -135,6 +135,22 @@ defmodule Tranca.Game do
     do: {:error, :game_already_started}
 
   @doc """
+  Returns the player whose turn it currently is.
+  """
+  @spec current_player(t()) :: Player.t() | nil
+  def current_player(%__MODULE__{players: players, turn: turn}) do
+    Enum.at(players, turn)
+  end
+
+  @doc """
+  Marks the game as finished and records the winning team.
+  """
+  @spec finish(t(), Team.id()) :: t()
+  def finish(%__MODULE__{status: :playing} = game, winner) when winner in [:a, :b] do
+    %{game | status: :finished, winner: winner}
+  end
+
+  @doc """
   Draws the top card from the deck for the given player.
   """
   @spec draw_from_deck(t(), String.t()) :: {:ok, t()} | {:error, atom()}
