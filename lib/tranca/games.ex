@@ -110,6 +110,17 @@ defmodule Tranca.Games do
     |> Repo.all()
   end
 
+  @doc """
+  Returns the number of open seats in a persisted game.
+  """
+  @spec open_seats(String.t()) :: {:ok, integer()} | {:error, :game_not_found}
+  def open_seats(game_id) do
+    with {:ok, record} <- fetch_game_record(game_id) do
+      count = Repo.aggregate(where(GamePlayer, game_id: ^record.id), :count, :id)
+      {:ok, record.player_count - count}
+    end
+  end
+
   defp fetch_game_record(game_id) do
     case Repo.get_by(GameRecord, game_id: game_id) do
       nil -> {:error, :game_not_found}

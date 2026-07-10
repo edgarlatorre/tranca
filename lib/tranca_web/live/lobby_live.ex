@@ -49,12 +49,17 @@ defmodule TrancaWeb.LobbyLive do
   def handle_event("join_game", %{"join_code" => code}, socket) do
     code = String.trim(code)
 
-    case Games.get_game_record(code) do
-      {:ok, _record} ->
-        {:noreply, push_navigate(socket, to: "/games/#{code}")}
-
+    with {:ok, record} <- Games.get_game_record(code),
+         true <- record.status == "waiting",
+         {:ok, open} <- Games.open_seats(code),
+         true <- open > 0 do
+      {:noreply, push_navigate(socket, to: "/games/#{code}")}
+    else
       {:error, :game_not_found} ->
         {:noreply, assign(socket, error: "Game not found. Check the code and try again.")}
+
+      false ->
+        {:noreply, assign(socket, error: "This game is full or no longer accepting players.")}
     end
   end
 

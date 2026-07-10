@@ -62,5 +62,17 @@ defmodule TrancaWeb.LobbyLiveTest do
 
       assert html =~ "Game not found"
     end
+
+    test "shows an error for a full game", %{conn: conn} do
+      {:ok, _record} = Games.create_game_record("full-game", 2)
+      {:ok, _player} = Games.add_player_record("full-game", "user-1", 0, :a)
+      {:ok, _player} = Games.add_player_record("full-game", "user-2", 1, :b)
+
+      {:ok, view, _html} = live(conn, ~p"/lobby")
+
+      html = render_submit(view, "join_game", %{"join_code" => "full-game"})
+
+      assert html =~ "full or no longer accepting"
+    end
   end
 end
