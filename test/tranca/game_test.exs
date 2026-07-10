@@ -205,6 +205,52 @@ defmodule Tranca.GameTest do
     end
   end
 
+  describe "discard/3" do
+    test "moves a card from hand to discard pile and advances turn" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      card_to_discard = hd(current_player.hand)
+
+      assert {:ok, game} = Game.draw_from_deck(game, current_player.id)
+      assert {:ok, game} = Game.discard(game, current_player.id, card_to_discard.id)
+
+      current_player = Enum.at(game.players, 0)
+      refute card_to_discard.id in Enum.map(current_player.hand, & &1.id)
+      assert hd(game.discard_pile).id == card_to_discard.id
+      assert game.turn == 1
+      refute game.drawn_this_turn
+    end
+
+    test "rejects discarding before drawing" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      card_to_discard = hd(current_player.hand)
+
+      assert {:error, :must_draw_first} =
+               Game.discard(game, current_player.id, card_to_discard.id)
+    end
+
+    test "rejects discarding a card not in hand" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      other_player = Enum.at(game.players, 1)
+      card_from_other = hd(other_player.hand)
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:error, :card_not_in_hand} =
+               Game.discard(game, current_player.id, card_from_other.id)
+    end
+
+    test "rejects discarding out of turn" do
+      game = started_game()
+      other_player = Enum.at(game.players, 1)
+
+      assert {:error, :not_your_turn} =
+               Game.discard(game, other_player.id, "nonexistent")
+    end
+  end
+
   defp add_players(game, players) do
     Enum.reduce(players, game, fn {user_id, seat, team}, acc ->
       {:ok, updated} = Game.add_player(acc, user_id, seat, team)

@@ -176,6 +176,29 @@ defmodule Tranca.Game do
   def draw_from_discard(%__MODULE__{}, _player_id),
     do: {:error, :game_not_playing}
 
+  @doc """
+  Discards a card from the player's hand to the discard pile.
+
+  Ends the player's turn and advances to the next player.
+  """
+  @spec discard(t(), String.t(), String.t()) :: {:ok, t()} | {:error, atom()}
+  def discard(%__MODULE__{status: :playing} = game, player_id, card_id) do
+    with :ok <- validate_turn(game, player_id),
+         :ok <- validate_drawn(game),
+         {:ok, card, hand} <- remove_card_from_hand(game, player_id, card_id) do
+      game =
+        game
+        |> update_player_hand(player_id, hand)
+        |> add_card_to_discard(card)
+        |> advance_turn()
+
+      {:ok, %{game | drawn_this_turn: false}}
+    end
+  end
+
+  def discard(%__MODULE__{}, _player_id, _card_id),
+    do: {:error, :game_not_playing}
+
   defp validate_turn(game, player_id) do
     current_player = Enum.at(game.players, game.turn)
 
@@ -188,6 +211,9 @@ defmodule Tranca.Game do
 
   defp validate_not_drawn(%__MODULE__{drawn_this_turn: false}), do: :ok
   defp validate_not_drawn(%__MODULE__{}), do: {:error, :already_drew}
+
+  defp validate_drawn(%__MODULE__{drawn_this_turn: true}), do: :ok
+  defp validate_drawn(%__MODULE__{}), do: {:error, :must_draw_first}
 
   defp validate_discard_not_blocked(%__MODULE__{discard_pile: [top | _]}) do
     if Card.black_three?(top) do
@@ -210,6 +236,40 @@ defmodule Tranca.Game do
       end)
 
     %{game | players: players}
+  end
+
+  defp remove_card_from_hand(game, player_id, card_id) do
+    player = Enum.at(game.players, game.turn)
+
+    if player && player.id == player_id do
+      case Enum.split_with(player.hand, &(&1.id == card_id)) do
+        {[card], rest} -> {:ok, card, rest}
+        {_, _rest} -> {:error, :card_not_in_hand}
+      end
+    else
+      {:error, :not_your_turn}
+    end
+  end
+
+  defp update_player_hand(game, player_id, hand) do
+    players =
+      Enum.map(game.players, fn player ->
+        if player.id == player_id do
+          %{player | hand: hand}
+        else
+          player
+        end
+      end)
+
+    %{game | players: players}
+  end
+
+  defp add_card_to_discard(game, card) do
+    %{game | discard_pile: [card | game.discard_pile]}
+  end
+
+  defp advance_turn(game) do
+    %{game | turn: rem(game.turn + 1, game.player_count)}
   end
 
   defp deal_players(cards, [], dealt_players), do: {Enum.reverse(dealt_players), cards}
