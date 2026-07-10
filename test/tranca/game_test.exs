@@ -822,6 +822,85 @@ defmodule Tranca.GameTest do
       assert {:error, :invalid_replacement_card} =
                Game.replace_joker(game, current_player.id, 0, wrong_card.id)
     end
+
+    test "rejects replacing with an invalid meld index" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      natural = Card.new("natural", :seven, :hearts, 5)
+
+      game = update_player_hand_cards(game, current_player.id, [natural | current_player.hand])
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:error, :invalid_meld_index} =
+               Game.replace_joker(game, current_player.id, 99, natural.id)
+    end
+
+    test "rejects replacing when the game is not playing" do
+      game = Game.new("game-1", 2)
+
+      assert {:error, :game_not_playing} =
+               Game.replace_joker(game, "player-0", 0, "x")
+    end
+
+    test "rejects replacement that leaves an invalid meld" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      joker = Card.new("joker", :joker, nil, 50)
+      natural = Card.new("natural", :seven, :hearts, 5)
+
+      meld =
+        Meld.new([
+          Card.new("seven-1", :seven, :diamonds, 5),
+          joker
+        ])
+
+      game = put_in(game.teams.a.melds, [meld])
+      game = update_player_hand_cards(game, current_player.id, [natural | current_player.hand])
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:error, :invalid_meld} =
+               Game.replace_joker(game, current_player.id, 0, natural.id)
+    end
+  end
+
+  describe "pickup_morto/2" do
+    test "returns an error when the morto is empty" do
+      game = started_game()
+      game = %{game | morto: []}
+
+      assert {:error, :empty_morto} = Game.pickup_morto(game, "player-0")
+    end
+
+    test "continues discard normally when morto pickup fails" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      [last_card] = [Card.new("last", :ace, :hearts, 20)]
+
+      game = update_player_hand_cards(game, current_player.id, [last_card])
+      game = %{game | drawn_this_turn: true, morto: []}
+
+      canastra =
+        Meld.new(
+          for {suit, i} <-
+                Enum.with_index([
+                  :hearts,
+                  :diamonds,
+                  :spades,
+                  :clubs,
+                  :hearts,
+                  :diamonds,
+                  :spades
+                ]) do
+            Card.new("canastra-#{i}", :seven, suit, 5)
+          end
+        )
+
+      game = put_in(game.teams.a.melds, [canastra])
+
+      assert {:ok, game} = Game.discard(game, current_player.id, last_card.id)
+      assert game.turn == 1
+    end
   end
 
   defp add_players(game, players) do
