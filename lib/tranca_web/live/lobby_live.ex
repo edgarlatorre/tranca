@@ -48,18 +48,20 @@ defmodule TrancaWeb.LobbyLive do
 
   def handle_event("join_game", %{"join_code" => code}, socket) do
     code = String.trim(code)
+    user_id = generate_user_id()
 
-    with {:ok, record} <- Games.get_game_record(code),
-         true <- record.status == "waiting",
-         {:ok, open} <- Games.open_seats(code),
-         true <- open > 0 do
-      {:noreply, push_navigate(socket, to: "/games/#{code}")}
-    else
+    case Games.join_game(code, user_id) do
+      {:ok, _game} ->
+        {:noreply, push_navigate(socket, to: "/games/#{code}")}
+
       {:error, :game_not_found} ->
         {:noreply, assign(socket, error: "Game not found. Check the code and try again.")}
 
-      false ->
+      {:error, :game_full_or_started} ->
         {:noreply, assign(socket, error: "This game is full or no longer accepting players.")}
+
+      {:error, _reason} ->
+        {:noreply, assign(socket, error: "Could not join the game. Please try again.")}
     end
   end
 
@@ -76,5 +78,9 @@ defmodule TrancaWeb.LobbyLive do
     |> String.replace(~r/[^a-zA-Z0-9]/, "")
     |> String.slice(0, 6)
     |> String.downcase()
+  end
+
+  defp generate_user_id do
+    :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
   end
 end

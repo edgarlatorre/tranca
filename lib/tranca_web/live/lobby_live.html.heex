@@ -71,6 +71,15 @@
                 <p class="text-sm opacity-75">
                   {length(game.players)} / {game.player_count} players
                 </p>
+                <%= if game.players != [] do %>
+                  <ul class="text-xs opacity-60 mt-1 space-y-0.5">
+                    <%= for player <- game.players do %>
+                      <li>
+                        Seat {player.seat + 1} · Team {String.upcase(player.team)} · {player.user_id}
+                      </li>
+                    <% end %>
+                  </ul>
+                <% end %>
               </div>
               <.link navigate={"/games/#{game.game_id}"} class="btn btn-sm btn-primary">
                 Join

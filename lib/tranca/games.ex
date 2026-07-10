@@ -59,6 +59,43 @@ defmodule Tranca.Games do
   end
 
   @doc """
+  Joins a user to the next available seat and team in a game.
+
+  Also adds the player to the running game server. Returns an error if the
+  game is full or no longer waiting.
+  """
+  @spec join_game(String.t(), String.t()) ::
+          {:ok, Game.t()} | {:error, atom()}
+  def join_game(game_id, user_id) do
+    with {:ok, record} <- fetch_game_record(game_id),
+         true <- record.status == "waiting",
+         {:ok, open} <- open_seats(game_id),
+         true <- open > 0,
+         seat <- next_seat(record.id),
+         team <- seat_team(seat),
+         {:ok, _player} <- add_player_record(game_id, user_id, seat, team),
+         {:ok, _game} <- add_player(game_id, user_id, seat, team) do
+      get_game(game_id)
+    else
+      false -> {:error, :game_full_or_started}
+      error -> error
+    end
+  end
+
+  defp next_seat(record_id) do
+    occupied =
+      GamePlayer
+      |> where(game_id: ^record_id)
+      |> select([p], p.seat)
+      |> Repo.all()
+
+    Enum.find(0..3, fn seat -> seat not in occupied end) || 0
+  end
+
+  defp seat_team(seat) when rem(seat, 2) == 0, do: :a
+  defp seat_team(_seat), do: :b
+
+  @doc """
   Updates the persisted game status and winner.
   """
   @spec update_game_record(String.t(), keyword()) ::

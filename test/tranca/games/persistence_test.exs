@@ -62,4 +62,32 @@ defmodule Tranca.Games.PersistenceTest do
       assert {:error, :game_not_found} = Games.get_game_record("missing")
     end
   end
+
+  describe "join_game/2" do
+    test "assigns the next seat and team in a 4-player game" do
+      game_id = "game-#{System.unique_integer([:positive])}"
+      {:ok, _record} = Games.create_game_record(game_id, 4, 3000)
+      {:ok, _pid} = Games.new_game(game_id, 4)
+
+      assert {:ok, game} = Games.join_game(game_id, "user-1")
+      player = Enum.find(game.players, &(&1.user_id == "user-1"))
+      assert player.seat == 0
+      assert player.team == :a
+
+      assert {:ok, game} = Games.join_game(game_id, "user-2")
+      player = Enum.find(game.players, &(&1.user_id == "user-2"))
+      assert player.seat == 1
+      assert player.team == :b
+    end
+
+    test "returns an error when the game is full" do
+      game_id = "game-#{System.unique_integer([:positive])}"
+      {:ok, _record} = Games.create_game_record(game_id, 2, 3000)
+      {:ok, _pid} = Games.new_game(game_id, 2)
+      {:ok, _game} = Games.join_game(game_id, "user-1")
+      {:ok, _game} = Games.join_game(game_id, "user-2")
+
+      assert {:error, :game_full_or_started} = Games.join_game(game_id, "user-3")
+    end
+  end
 end
