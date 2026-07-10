@@ -1,0 +1,19 @@
+{
+  "coverage_options": {
+    "minimum_coverage": 85,
+    "treat_no_relevant_lines_as_covered": true
+  },
+  "skip_files": [
+    "test/support",
+    "lib/tranca/application.ex",
+    "lib/tranca/mailer.ex",
+    "lib/tranca/repo.ex",
+    "lib/tranca_web.ex",
+    "lib/tranca_web/components/core_components.ex",
+    "lib/tranca_web/components/layouts.ex",
+    "lib/tranca_web/endpoint.ex",
+    "lib/tranca_web/gettext.ex",
+    "lib/tranca_web/router.ex",
+    "lib/tranca_web/telemetry.ex"
+  ]
+}
