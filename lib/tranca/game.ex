@@ -64,4 +64,75 @@ defmodule Tranca.Game do
       winner: nil
     }
   end
+
+  @doc """
+  Adds a player to the game while it is in the `:waiting` state.
+
+  The seat must be unique and within the valid range for the game's
+  player count. The team must be `:a` or `:b`.
+  """
+  @spec add_player(t(), String.t(), String.t() | nil, Player.team()) ::
+          {:ok, t()} | {:error, atom()}
+  def add_player(%__MODULE__{status: :waiting} = game, user_id, seat, team)
+      when is_integer(seat) and seat >= 0 and seat < game.player_count and
+             team in [:a, :b] do
+    if Enum.any?(game.players, &(&1.seat == seat)) do
+      {:error, :seat_taken}
+    else
+      player = Player.new("player-#{seat}", user_id, seat, team)
+
+      teams =
+        Map.update!(game.teams, team, fn team_struct ->
+          Team.add_player(team_struct, player.id)
+        end)
+
+      {:ok, %{game | players: game.players ++ [player], teams: teams}}
+    end
+  end
+
+  def add_player(%__MODULE__{status: :waiting}, _user_id, _seat, _team),
+    do: {:error, :invalid_seat_or_team}
+
+  def add_player(%__MODULE__{}, _user_id, _seat, _team),
+    do: {:error, :game_already_started}
+
+  @doc """
+  Starts the game, dealing cards and creating the morto and discard pile.
+
+  Requires the correct number of players and a seed for deterministic
+  shuffling. Returns an error if the game is not in the `:waiting` state
+  or does not have the expected number of players.
+  """
+  @spec start(t(), integer()) :: {:ok, t()} | {:error, atom()}
+  def start(%__MODULE__{status: :waiting} = game, seed)
+      when is_integer(seed) and length(game.players) == game.player_count do
+    shuffled = Card.deck() |> Card.shuffle(seed)
+
+    {players, remaining} = deal_players(shuffled, game.players, [])
+    {morto, [discard_top | deck]} = Enum.split(remaining, 11)
+
+    {:ok,
+     %{
+       game
+       | status: :playing,
+         players: players,
+         morto: morto,
+         deck: deck,
+         discard_pile: [discard_top],
+         turn: 0
+     }}
+  end
+
+  def start(%__MODULE__{status: :waiting}, _seed),
+    do: {:error, :not_enough_players}
+
+  def start(%__MODULE__{}, _seed),
+    do: {:error, :game_already_started}
+
+  defp deal_players(cards, [], dealt_players), do: {Enum.reverse(dealt_players), cards}
+
+  defp deal_players(cards, [player | rest], dealt_players) do
+    {hand, remaining} = Enum.split(cards, 11)
+    deal_players(remaining, rest, [%{player | hand: hand} | dealt_players])
+  end
 end
