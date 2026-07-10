@@ -183,6 +183,32 @@ defmodule Tranca.Game do
   end
 
   @doc """
+  Gives the morto cards to the appropriate player on the going-out player's team.
+
+  In a 2-player game the morto goes to the same player. In a 4-player game it
+  goes to the teammate (partner). Returns an error if the morto is empty.
+  """
+  @spec pickup_morto(t(), String.t()) :: {:ok, t()} | {:error, atom()}
+  def pickup_morto(%__MODULE__{morto: []}, _player_id), do: {:error, :empty_morto}
+
+  def pickup_morto(%__MODULE__{} = game, player_id) do
+    current_player = Enum.find(game.players, &(&1.id == player_id))
+
+    if current_player do
+      target_id = morto_target_id(game, current_player)
+
+      game =
+        game
+        |> give_cards_to_player(target_id, game.morto)
+        |> Map.put(:morto, [])
+
+      {:ok, game}
+    else
+      {:error, :player_not_found}
+    end
+  end
+
+  @doc """
   Draws the top card from the deck for the given player.
   """
   @spec draw_from_deck(t(), String.t()) :: {:ok, t()} | {:error, atom()}
@@ -241,7 +267,16 @@ defmodule Tranca.Game do
         |> add_card_to_discard(card)
         |> advance_turn()
 
-      {:ok, %{game | drawn_this_turn: false}}
+      game = %{game | drawn_this_turn: false}
+
+      if hand == [] and team_has_canastra?(game, player_id) do
+        case pickup_morto(game, player_id) do
+          {:ok, game} -> {:ok, game}
+          {:error, _} -> {:ok, game}
+        end
+      else
+        {:ok, game}
+      end
     end
   end
 
@@ -314,6 +349,17 @@ defmodule Tranca.Game do
     |> Enum.reduce(0, fn _, acc -> acc - 100 end)
   end
 
+  defp team_has_canastra?(game, player_id) do
+    player = Enum.find(game.players, &(&1.id == player_id))
+
+    if player do
+      team = game.teams[player.team]
+      Enum.any?(team.melds, &Meld.canastra?/1)
+    else
+      false
+    end
+  end
+
   defp red_three_bonus(team) do
     team.melds
     |> Enum.flat_map(&Meld.red_threes/1)
@@ -331,16 +377,33 @@ defmodule Tranca.Game do
   defp validate_discard_not_blocked(%__MODULE__{}), do: :ok
 
   defp give_card_to_player(game, player_id, card) do
+    give_cards_to_player(game, player_id, [card])
+  end
+
+  defp give_cards_to_player(game, player_id, cards) do
     players =
       Enum.map(game.players, fn player ->
         if player.id == player_id do
-          %{player | hand: [card | player.hand]}
+          %{player | hand: player.hand ++ cards}
         else
           player
         end
       end)
 
     %{game | players: players}
+  end
+
+  defp morto_target_id(game, current_player) do
+    if game.player_count == 2 do
+      current_player.id
+    else
+      teammate =
+        Enum.find(game.players, fn player ->
+          player.team == current_player.team and player.id != current_player.id
+        end)
+
+      if teammate, do: teammate.id, else: current_player.id
+    end
   end
 
   defp remove_card_from_hand(game, player_id, card_id) do

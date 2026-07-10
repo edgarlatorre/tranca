@@ -283,6 +283,102 @@ defmodule Tranca.GameTest do
       assert {:error, :not_your_turn} =
                Game.discard(game, other_player.id, "nonexistent")
     end
+
+    test "picks up the morto when a player goes out with a canastra in 2p" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      [last_card] = [Card.new("last", :ace, :hearts, 20)]
+
+      game = update_player_hand_cards(game, current_player.id, [last_card])
+      game = %{game | drawn_this_turn: true}
+
+      canastra =
+        Meld.new(
+          for {suit, i} <-
+                Enum.with_index([
+                  :hearts,
+                  :diamonds,
+                  :spades,
+                  :clubs,
+                  :hearts,
+                  :diamonds,
+                  :spades
+                ]) do
+            Card.new("canastra-#{i}", :seven, suit, 5)
+          end
+        )
+
+      game = put_in(game.teams.a.melds, [canastra])
+
+      {:ok, game} = Game.discard(game, current_player.id, last_card.id)
+
+      current_player = Enum.find(game.players, &(&1.id == current_player.id))
+      assert game.morto == []
+      assert length(current_player.hand) == 11
+    end
+
+    test "does not pick up the morto without a canastra" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      [last_card] = [Card.new("last", :ace, :hearts, 20)]
+
+      game = update_player_hand_cards(game, current_player.id, [last_card])
+      game = %{game | drawn_this_turn: true}
+      {:ok, game} = Game.discard(game, current_player.id, last_card.id)
+
+      assert length(game.morto) == 11
+      current_player = Enum.find(game.players, &(&1.id == current_player.id))
+      assert current_player.hand == []
+    end
+
+    test "picks up the morto for the teammate in 4p" do
+      game =
+        Game.new("game-1", 4)
+        |> add_players([
+          {"user-1", 0, :a},
+          {"user-2", 1, :b},
+          {"user-3", 2, :a},
+          {"user-4", 3, :b}
+        ])
+        |> then(fn game ->
+          {:ok, game} = Game.start(game, 42)
+          game
+        end)
+
+      current_player = Enum.at(game.players, game.turn)
+
+      teammate =
+        Enum.find(game.players, &(&1.team == current_player.team and &1.id != current_player.id))
+
+      [last_card] = [Card.new("last", :ace, :hearts, 20)]
+
+      game = update_player_hand_cards(game, current_player.id, [last_card])
+      game = %{game | drawn_this_turn: true}
+
+      canastra =
+        Meld.new(
+          for {suit, i} <-
+                Enum.with_index([
+                  :hearts,
+                  :diamonds,
+                  :spades,
+                  :clubs,
+                  :hearts,
+                  :diamonds,
+                  :spades
+                ]) do
+            Card.new("canastra-#{i}", :seven, suit, 5)
+          end
+        )
+
+      game = put_in(game.teams.a.melds, [canastra])
+
+      {:ok, game} = Game.discard(game, current_player.id, last_card.id)
+
+      teammate = Enum.find(game.players, &(&1.id == teammate.id))
+      assert game.morto == []
+      assert length(teammate.hand) == 22
+    end
   end
 
   describe "current_player/1" do
