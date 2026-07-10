@@ -90,6 +90,28 @@ defmodule Tranca.Games do
     end
   end
 
+  @doc """
+  Replaces a joker in one of the team's melds with a natural card from the
+  player's hand.
+  """
+  @spec replace_joker(String.t(), String.t(), integer(), String.t()) ::
+          {:ok, Game.t()} | {:error, atom()}
+  def replace_joker(game_id, player_id, meld_index, card_id) do
+    with {:ok, pid} <- via(game_id) do
+      GenServer.call(pid, {:replace_joker, player_id, meld_index, card_id})
+    end
+  end
+
+  @doc """
+  Scores the current hand and updates team totals.
+  """
+  @spec score_round(String.t()) :: {:ok, Game.t()} | {:error, atom()}
+  def score_round(game_id) do
+    with {:ok, pid} <- via(game_id) do
+      GenServer.call(pid, :score_round)
+    end
+  end
+
   defp via(game_id) do
     GameSupervisor.lookup(game_id)
   end

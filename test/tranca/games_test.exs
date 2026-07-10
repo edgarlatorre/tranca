@@ -2,6 +2,8 @@ defmodule Tranca.GamesTest do
   @moduledoc false
   use ExUnit.Case, async: true
 
+  alias Tranca.Game.Card
+  alias Tranca.Game.Meld
   alias Tranca.Games
 
   describe "new_game/2" do
@@ -64,5 +66,49 @@ defmodule Tranca.GamesTest do
 
       assert game.turn == 1
     end
+
+    test "replaces a joker and scores a round", %{game_id: game_id} do
+      {:ok, _game} = Games.add_player(game_id, "user-1", 0, :a)
+      {:ok, _game} = Games.add_player(game_id, "user-2", 1, :b)
+      {:ok, game} = Games.start(game_id, 42)
+
+      current_player = Enum.at(game.players, game.turn)
+      natural = Card.new("natural", :seven, :hearts, 5)
+      joker = Card.new("joker", :joker, nil, 50)
+
+      meld =
+        Meld.new([
+          Card.new("seven-1", :seven, :diamonds, 5),
+          Card.new("seven-2", :seven, :spades, 5),
+          joker
+        ])
+
+      prepared_game =
+        game
+        |> put_in([Access.key(:teams), :a, Access.key(:melds)], [meld])
+        |> update_player_hand(current_player.id, [natural])
+        |> Map.put(:drawn_this_turn, true)
+
+      {:ok, pid} = Tranca.Games.Supervisor.lookup(game_id)
+      :sys.replace_state(pid, fn state -> %{state | game: prepared_game} end)
+
+      assert {:ok, game} = Games.replace_joker(game_id, current_player.id, 0, natural.id)
+      refute Enum.any?(hd(game.teams.a.melds).cards, &(&1.rank == :joker))
+
+      assert {:ok, _game} = Games.score_round(game_id)
+    end
+  end
+
+  defp update_player_hand(game, player_id, hand) do
+    players =
+      Enum.map(game.players, fn player ->
+        if player.id == player_id do
+          %{player | hand: hand}
+        else
+          player
+        end
+      end)
+
+    %{game | players: players}
   end
 end

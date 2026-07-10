@@ -105,6 +105,18 @@ defmodule Tranca.Games.Server do
     end
   end
 
+  def handle_call({:replace_joker, player_id, meld_index, card_id}, _from, state) do
+    case Game.replace_joker(state.game, player_id, meld_index, card_id) do
+      {:ok, game} -> {:reply, {:ok, game}, %{state | game: game}}
+      error -> {:reply, error, state}
+    end
+  end
+
+  def handle_call(:score_round, _from, state) do
+    game = Game.score_round(state.game)
+    {:reply, {:ok, game}, %{state | game: game}}
+  end
+
   defp via_tuple(game_id) do
     {:via, Registry, {Tranca.Games.Registry, game_id}}
   end
