@@ -28,16 +28,18 @@ defmodule Tranca.Game.Meld do
   Returns true if the meld is valid.
 
   A meld is valid when it has at least three cards, contains at least
-  one natural (non-wildcard) card, and all natural cards share the same
-  rank.
+  one natural (non-wildcard) card, all natural cards share the same rank,
+  and the number of wildcards does not exceed the number of natural cards.
   """
   @spec valid?(t()) :: boolean()
   def valid?(%__MODULE__{cards: cards}) do
-    {naturals, _wildcards} = Enum.split_with(cards, &(!Card.wildcard?(&1)))
+    naturals = Enum.reject(cards, &Card.wildcard?/1)
+    wildcards = Enum.filter(cards, &Card.wildcard?/1)
 
     case {cards, naturals} do
       {[_a, _b, _c | _rest], [first | rest]} ->
-        Enum.all?(rest, &(&1.rank == first.rank))
+        length(wildcards) <= length(naturals) and
+          Enum.all?(rest, &(&1.rank == first.rank))
 
       _ ->
         false

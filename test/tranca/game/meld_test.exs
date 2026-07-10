@@ -59,6 +59,29 @@ defmodule Tranca.Game.MeldTest do
 
       refute Meld.valid?(meld)
     end
+
+    test "returns false when wildcards exceed natural cards" do
+      meld =
+        Meld.new([
+          Card.new("1", :seven, :hearts, 5),
+          Card.new("2", :two, :diamonds, 20),
+          Card.new("3", :joker, nil, 50)
+        ])
+
+      refute Meld.valid?(meld)
+    end
+
+    test "returns true when wildcards equal natural cards" do
+      meld =
+        Meld.new([
+          Card.new("1", :seven, :hearts, 5),
+          Card.new("2", :seven, :diamonds, 5),
+          Card.new("3", :two, :spades, 20),
+          Card.new("4", :joker, nil, 50)
+        ])
+
+      assert Meld.valid?(meld)
+    end
   end
 
   describe "rank/1" do
