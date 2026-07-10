@@ -1,0 +1,72 @@
+<Layouts.app flash={@flash} current_scope={@current_scope}>
+  <div class="space-y-8">
+    <section class="text-center space-y-4">
+      <h1 class="text-4xl font-bold tracking-tight">Tranca Lobby</h1>
+      <p class="text-lg opacity-75">Create a new game or join one with a code.</p>
+    </section>
+
+    <section class="grid gap-6 sm:grid-cols-2">
+      <div class="card bg-base-200 shadow-xl p-6 space-y-4">
+        <h2 class="text-2xl font-semibold">Create Game</h2>
+        <p class="opacity-75">Start a new 4-player table and invite your friends.</p>
+        <button
+          id="create-game-button"
+          phx-click="create_game"
+          class="btn btn-primary w-full"
+        >
+          Create New Game
+        </button>
+      </div>
+
+      <div class="card bg-base-200 shadow-xl p-6 space-y-4">
+        <h2 class="text-2xl font-semibold">Join Game</h2>
+        <p class="opacity-75">Enter a game code to take a seat at an existing table.</p>
+
+        <.form
+          for={@form}
+          id="join-game-form"
+          phx-change="validate_join"
+          phx-submit="join_game"
+          class="space-y-4"
+        >
+          <.input
+            field={@form[:join_code]}
+            type="text"
+            label="Game Code"
+            placeholder="Enter game code"
+          />
+
+          <button type="submit" class="btn btn-secondary w-full">Join Game</button>
+        </.form>
+
+        <%= if @error do %>
+          <p id="join-error" class="text-error text-sm">{@error}</p>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-2xl font-semibold">Open Games</h2>
+
+      <%= if @games == [] do %>
+        <p class="opacity-75">No open games right now. Create one to get started!</p>
+      <% else %>
+        <ul id="open-games" class="space-y-3">
+          <%= for game <- @games do %>
+            <li class="card bg-base-200 shadow p-4 flex items-center justify-between">
+              <div>
+                <p class="font-mono font-semibold">{game.game_id}</p>
+                <p class="text-sm opacity-75">
+                  {length(game.players)} / {game.player_count} players
+                </p>
+              </div>
+              <.link navigate={"/games/#{game.game_id}"} class="btn btn-sm btn-primary">
+                Join
+              </.link>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </section>
+  </div>
+</Layouts.app>

@@ -6,6 +6,8 @@ defmodule Tranca.Games do
   registered by game ID so players and LiveViews can interact with it.
   """
 
+  import Ecto.Query
+
   alias Tranca.Game
   alias Tranca.Games.GamePlayer
   alias Tranca.Games.GameRecord
@@ -94,6 +96,18 @@ defmodule Tranca.Games do
   @spec get_game_record(String.t()) :: {:ok, GameRecord.t()} | {:error, :game_not_found}
   def get_game_record(game_id) do
     fetch_game_record(game_id)
+  end
+
+  @doc """
+  Returns waiting game records preloaded with their players.
+  """
+  @spec list_waiting_games() :: [GameRecord.t()]
+  def list_waiting_games do
+    GameRecord
+    |> where(status: "waiting")
+    |> preload(:players)
+    |> order_by(desc: :inserted_at)
+    |> Repo.all()
   end
 
   defp fetch_game_record(game_id) do
