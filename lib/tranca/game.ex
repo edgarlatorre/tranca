@@ -151,6 +151,22 @@ defmodule Tranca.Game do
   end
 
   @doc """
+  Applies a -100 point penalty for each black 3 remaining in players' hands.
+
+  Penalties are applied per team.
+  """
+  @spec apply_black_three_penalties(t()) :: t()
+  def apply_black_three_penalties(%__MODULE__{} = game) do
+    teams =
+      Map.new(game.teams, fn {team_id, team} ->
+        penalty = black_three_penalty(game, team_id)
+        {team_id, %{team | score: team.score + penalty}}
+      end)
+
+    %{game | teams: teams}
+  end
+
+  @doc """
   Draws the top card from the deck for the given player.
   """
   @spec draw_from_deck(t(), String.t()) :: {:ok, t()} | {:error, atom()}
@@ -273,6 +289,13 @@ defmodule Tranca.Game do
     else
       {:error, :first_meld_minimum_not_met}
     end
+  end
+
+  defp black_three_penalty(game, team_id) do
+    game.players
+    |> Enum.filter(&(&1.team == team_id))
+    |> Enum.flat_map(&Player.black_threes/1)
+    |> Enum.reduce(0, fn _, acc -> acc - 100 end)
   end
 
   defp validate_discard_not_blocked(%__MODULE__{discard_pile: [top | _]}) do

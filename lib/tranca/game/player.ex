@@ -20,6 +20,14 @@ defmodule Tranca.Game.Player do
   defstruct [:id, :user_id, :seat, :team, :hand, status: :waiting]
 
   @doc """
+  Returns the black threes in the player's hand.
+  """
+  @spec black_threes(t()) :: [Card.t()]
+  def black_threes(%__MODULE__{hand: hand}) do
+    Enum.filter(hand, &Card.black_three?/1)
+  end
+
+  @doc """
   Creates a new player.
   """
   @spec new(String.t(), String.t() | nil, integer(), team()) :: t()

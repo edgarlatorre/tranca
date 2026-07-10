@@ -385,6 +385,45 @@ defmodule Tranca.GameTest do
     end
   end
 
+  describe "apply_black_three_penalties/1" do
+    test "applies a -100 penalty per black three in a team's hands" do
+      game = started_game()
+      [player_0, player_1] = Enum.sort_by(game.players, & &1.seat)
+
+      game =
+        update_player_hand_cards(game, player_0.id, [
+          Card.new("b3-1", :three, :spades, 5),
+          Card.new("b3-2", :three, :clubs, 5)
+        ])
+
+      game =
+        update_player_hand_cards(game, player_1.id, [
+          Card.new("b3-3", :three, :spades, 5)
+        ])
+
+      game = Game.apply_black_three_penalties(game)
+
+      assert game.teams.a.score == -200
+      assert game.teams.b.score == -100
+    end
+
+    test "ignores red threes and other cards" do
+      game = started_game()
+      [player_0 | _] = Enum.sort_by(game.players, & &1.seat)
+
+      game =
+        update_player_hand_cards(game, player_0.id, [
+          Card.new("r3", :three, :hearts, 5),
+          Card.new("b3", :three, :spades, 5),
+          Card.new("seven", :seven, :hearts, 5)
+        ])
+
+      game = Game.apply_black_three_penalties(game)
+
+      assert game.teams.a.score == -100
+    end
+  end
+
   describe "meld/3" do
     test "lays down a valid first meld meeting the minimum points" do
       game = started_game()
