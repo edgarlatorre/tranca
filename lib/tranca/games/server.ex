@@ -20,6 +20,17 @@ defmodule Tranca.Games.Server do
   defstruct [:game_id, :game]
 
   @doc """
+  Returns the child spec for this GenServer.
+  """
+  def child_spec(opts) do
+    %{
+      id: {__MODULE__, Keyword.fetch!(opts, :game_id)},
+      start: {__MODULE__, :start_link, [opts]},
+      restart: :transient
+    }
+  end
+
+  @doc """
   Starts a game server linked to the caller.
   """
   @spec start_link(keyword()) :: GenServer.on_start()

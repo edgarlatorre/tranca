@@ -15,7 +15,7 @@ defmodule Tranca.Application do
       {DNSCluster, query: Application.get_env(:tranca, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Tranca.PubSub},
       {Registry, keys: :unique, name: Tranca.Games.Registry},
-      {DynamicSupervisor, strategy: :one_for_one, name: Tranca.Games.DynamicSupervisor},
+      Tranca.Games.Supervisor,
       # Start a worker by calling: Tranca.Worker.start_link(arg)
       # {Tranca.Worker, arg},
       # Start to serve requests, typically the last entry

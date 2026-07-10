@@ -8,14 +8,14 @@ defmodule Tranca.Games do
 
   alias Tranca.Game
   alias Tranca.Games.Server
+  alias Tranca.Games.Supervisor, as: GameSupervisor
 
   @doc """
   Starts a new game server with the given ID and player count.
   """
   @spec new_game(String.t(), Game.player_count()) :: DynamicSupervisor.on_start_child()
   def new_game(game_id, player_count) when player_count in [2, 4] do
-    spec = {Server, game_id: game_id, player_count: player_count}
-    DynamicSupervisor.start_child(Tranca.Games.DynamicSupervisor, spec)
+    GameSupervisor.start_game(game_id, player_count)
   end
 
   @doc """
@@ -91,9 +91,6 @@ defmodule Tranca.Games do
   end
 
   defp via(game_id) do
-    case Registry.lookup(Tranca.Games.Registry, game_id) do
-      [{pid, _}] -> {:ok, pid}
-      [] -> {:error, :game_not_found}
-    end
+    GameSupervisor.lookup(game_id)
   end
 end
