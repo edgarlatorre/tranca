@@ -7,8 +7,12 @@ defmodule Tranca.Games do
   """
 
   alias Tranca.Game
+  alias Tranca.Games.GamePlayer
+  alias Tranca.Games.GameRecord
+  alias Tranca.Games.GameRound
   alias Tranca.Games.Server
   alias Tranca.Games.Supervisor, as: GameSupervisor
+  alias Tranca.Repo
 
   @doc """
   Starts a new game server with the given ID and player count.
@@ -16,6 +20,87 @@ defmodule Tranca.Games do
   @spec new_game(String.t(), Game.player_count()) :: DynamicSupervisor.on_start_child()
   def new_game(game_id, player_count) when player_count in [2, 4] do
     GameSupervisor.start_game(game_id, player_count)
+  end
+
+  @doc """
+  Persists a new game record to the database.
+  """
+  @spec create_game_record(String.t(), Game.player_count(), integer()) ::
+          {:ok, GameRecord.t()} | {:error, Ecto.Changeset.t()}
+  def create_game_record(game_id, player_count, target_score \\ 3000) do
+    %GameRecord{}
+    |> GameRecord.changeset(%{
+      game_id: game_id,
+      status: "waiting",
+      player_count: player_count,
+      target_score: target_score
+    })
+    |> Repo.insert()
+  end
+
+  @doc """
+  Persists a player joining a game.
+  """
+  @spec add_player_record(String.t(), String.t(), integer(), Game.Player.team()) ::
+          {:ok, GamePlayer.t()} | {:error, Ecto.Changeset.t() | :game_not_found}
+  def add_player_record(game_id, user_id, seat, team) when team in [:a, :b] do
+    with {:ok, record} <- fetch_game_record(game_id) do
+      %GamePlayer{}
+      |> GamePlayer.changeset(%{
+        game_id: record.id,
+        user_id: user_id,
+        seat: seat,
+        team: to_string(team)
+      })
+      |> Repo.insert()
+    end
+  end
+
+  @doc """
+  Updates the persisted game status and winner.
+  """
+  @spec update_game_record(String.t(), keyword()) ::
+          {:ok, GameRecord.t()} | {:error, Ecto.Changeset.t() | :game_not_found}
+  def update_game_record(game_id, attrs) do
+    with {:ok, record} <- fetch_game_record(game_id) do
+      record
+      |> GameRecord.changeset(Map.new(attrs))
+      |> Repo.update()
+    end
+  end
+
+  @doc """
+  Persists the result of a finished round.
+  """
+  @spec save_round_result(String.t(), integer(), integer(), integer(), Game.Team.id() | nil) ::
+          {:ok, GameRound.t()} | {:error, Ecto.Changeset.t() | :game_not_found}
+  def save_round_result(game_id, round_number, team_a_score, team_b_score, winner) do
+    with {:ok, record} <- fetch_game_record(game_id) do
+      %GameRound{}
+      |> GameRound.changeset(%{
+        game_id: record.id,
+        round_number: round_number,
+        team_a_score: team_a_score,
+        team_b_score: team_b_score,
+        winner: winner && to_string(winner)
+      })
+      |> Repo.insert()
+    end
+  end
+
+  @doc """
+  Returns the persisted game record for the given game ID.
+  """
+  @spec get_game_record(String.t()) :: {:ok, GameRecord.t()} | {:error, :game_not_found}
+  def get_game_record(game_id) do
+    fetch_game_record(game_id)
+  end
+
+  defp fetch_game_record(game_id) do
+    case Repo.get_by(GameRecord, game_id: game_id) do
+      nil -> {:error, :game_not_found}
+      record -> {:ok, record}
+    end
   end
 
   @doc """
