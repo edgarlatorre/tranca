@@ -94,4 +94,67 @@ defmodule Tranca.Game.MeldTest do
       assert Meld.wildcards(meld) == [wildcard]
     end
   end
+
+  describe "canastra classification" do
+    test "classifies seven natural cards as canastra limpa" do
+      cards =
+        for {suit, i} <-
+              Enum.with_index([:hearts, :diamonds, :spades, :clubs, :hearts, :diamonds, :spades]) do
+          Card.new("limpa-#{i}", :seven, suit, 5)
+        end
+
+      meld = Meld.new(cards)
+
+      assert meld.type == :limpa
+      assert Meld.canastra?(meld)
+      assert Meld.valid?(meld)
+    end
+
+    test "classifies seven cards with a wildcard as canastra suja" do
+      naturals =
+        for {suit, i} <-
+              Enum.with_index([:hearts, :diamonds, :spades, :clubs, :hearts, :diamonds]) do
+          Card.new("suja-nat-#{i}", :seven, suit, 5)
+        end
+
+      wildcard = Card.new("suja-wild", :two, :spades, 20)
+      meld = Meld.new(naturals ++ [wildcard])
+
+      assert meld.type == :suja
+      assert Meld.canastra?(meld)
+      assert Meld.valid?(meld)
+    end
+
+    test "classifies six natural cards as normal" do
+      cards =
+        for {suit, i} <-
+              Enum.with_index([:hearts, :diamonds, :spades, :clubs, :hearts, :diamonds]) do
+          Card.new("normal-#{i}", :seven, suit, 5)
+        end
+
+      meld = Meld.new(cards)
+
+      assert meld.type == :normal
+      refute Meld.canastra?(meld)
+      assert Meld.valid?(meld)
+    end
+
+    test "does not classify invalid seven-card melds as canastra" do
+      cards = [
+        Card.new("1", :seven, :hearts, 5),
+        Card.new("2", :seven, :diamonds, 5),
+        Card.new("3", :seven, :spades, 5),
+        Card.new("4", :seven, :clubs, 5),
+        Card.new("5", :eight, :hearts, 5),
+        Card.new("6", :eight, :diamonds, 5),
+        Card.new("7", :eight, :spades, 5)
+      ]
+
+      meld = Meld.new(cards)
+
+      assert meld.type == :normal
+      refute Meld.canastra?(meld)
+      refute Meld.valid?(meld)
+    end
+  end
 end

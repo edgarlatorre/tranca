@@ -10,17 +10,18 @@ defmodule Tranca.Game.Meld do
   alias Tranca.Game.Card
 
   @type t :: %__MODULE__{
-          cards: [Card.t()]
+          cards: [Card.t()],
+          type: :normal | :limpa | :suja
         }
 
-  defstruct [:cards]
+  defstruct [:cards, type: :normal]
 
   @doc """
-  Creates a new meld from a list of cards.
+  Creates a new meld from a list of cards and classifies it.
   """
   @spec new([Card.t()]) :: t()
   def new(cards) when is_list(cards) do
-    %__MODULE__{cards: cards}
+    %__MODULE__{cards: cards, type: classify(cards)}
   end
 
   @doc """
@@ -71,5 +72,31 @@ defmodule Tranca.Game.Meld do
   @spec wildcards(t()) :: [Card.t()]
   def wildcards(%__MODULE__{cards: cards}) do
     Enum.filter(cards, &Card.wildcard?/1)
+  end
+
+  @doc """
+  Returns true if the meld is a canastra (7 or more cards).
+  """
+  @spec canastra?(t()) :: boolean()
+  def canastra?(%__MODULE__{type: type}), do: type in [:limpa, :suja]
+
+  defp classify(cards) do
+    naturals = Enum.reject(cards, &Card.wildcard?/1)
+
+    case {cards, naturals} do
+      {[_a, _b, _c, _d, _e, _f, _g | _rest], [first | rest]} ->
+        if Enum.all?(rest, &(&1.rank == first.rank)) do
+          if Enum.any?(cards, &Card.wildcard?/1) do
+            :suja
+          else
+            :limpa
+          end
+        else
+          :normal
+        end
+
+      _ ->
+        :normal
+    end
   end
 end
