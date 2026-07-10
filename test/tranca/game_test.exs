@@ -197,6 +197,26 @@ defmodule Tranca.GameTest do
                Game.draw_from_discard(game, current_player.id)
     end
 
+    test "allows drawing from the deck when the discard pile is blocked" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      black_three = Card.new("x", :three, :spades, 5)
+      game = %{game | discard_pile: [black_three]}
+
+      assert {:ok, game} = Game.draw_from_deck(game, current_player.id)
+      assert game.drawn_this_turn
+    end
+
+    test "allows drawing from the discard pile when the top card is a red three" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      red_three = Card.new("x", :three, :hearts, 5)
+      game = %{game | discard_pile: [red_three]}
+
+      assert {:ok, game} = Game.draw_from_discard(game, current_player.id)
+      assert red_three in Enum.find(game.players, &(&1.id == current_player.id)).hand
+    end
+
     test "rejects drawing out of turn" do
       game = started_game()
       other_player = Enum.at(game.players, 1)
