@@ -355,6 +355,76 @@ defmodule Tranca.Game do
   def meld(%__MODULE__{}, _player_id, _card_ids),
     do: {:error, :game_not_playing}
 
+  @doc """
+  Replaces a joker in one of the team's melds with a natural card from the
+  player's hand.
+
+  The natural card must match the rank of the meld, and the meld must contain
+  at least one joker. The joker is returned to the player's hand.
+  """
+  @spec replace_joker(t(), String.t(), integer(), String.t()) :: {:ok, t()} | {:error, atom()}
+  def replace_joker(%__MODULE__{status: :playing} = game, player_id, meld_index, card_id) do
+    with :ok <- validate_turn(game, player_id),
+         :ok <- validate_drawn(game),
+         current_player = Enum.at(game.players, game.turn),
+         team when not is_nil(team) <- Map.get(game.teams, current_player.team),
+         meld when not is_nil(meld) <- Enum.at(team.melds, meld_index),
+         {:ok, joker, _natural_card, updated_meld} <-
+           perform_joker_replace(meld, card_id, game, player_id),
+         true <- Meld.valid?(updated_meld) do
+      updated_hand = give_joker_to_player(game, player_id, joker)
+
+      teams =
+        Map.update!(game.teams, current_player.team, fn team ->
+          melds = List.replace_at(team.melds, meld_index, updated_meld)
+          %{team | melds: melds}
+        end)
+
+      {:ok, %{game | players: updated_hand, teams: teams}}
+    else
+      nil -> {:error, :invalid_meld_index}
+      false -> {:error, :invalid_meld}
+      error -> error
+    end
+  end
+
+  def replace_joker(%__MODULE__{}, _player_id, _meld_index, _card_id),
+    do: {:error, :game_not_playing}
+
+  defp perform_joker_replace(meld, card_id, game, player_id) do
+    case Enum.split_with(meld.cards, &Card.wildcard?/1) do
+      {[], _naturals} ->
+        {:error, :no_joker_in_meld}
+
+      {jokers, naturals} ->
+        with [first_natural | _] <- naturals,
+             player = Enum.find(game.players, &(&1.id == player_id)),
+             natural_card = Enum.find(player.hand, &(&1.id == card_id)),
+             true <- not is_nil(natural_card),
+             true <- natural_card.rank == first_natural.rank do
+          [joker | rest_jokers] = jokers
+
+          updated_cards =
+            (naturals ++ rest_jokers)
+            |> List.insert_at(0, natural_card)
+
+          {:ok, joker, natural_card, Meld.new(updated_cards)}
+        else
+          _ -> {:error, :invalid_replacement_card}
+        end
+    end
+  end
+
+  defp give_joker_to_player(game, player_id, joker) do
+    Enum.map(game.players, fn player ->
+      if player.id == player_id do
+        %{player | hand: player.hand ++ [joker]}
+      else
+        player
+      end
+    end)
+  end
+
   defp validate_turn(game, player_id) do
     current_player = Enum.at(game.players, game.turn)
 

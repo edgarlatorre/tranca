@@ -751,6 +751,79 @@ defmodule Tranca.GameTest do
     end
   end
 
+  describe "replace_joker/4" do
+    test "replaces a joker with a matching natural card" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      joker = Card.new("joker", :joker, nil, 50)
+      natural = Card.new("natural", :seven, :hearts, 5)
+
+      meld =
+        Meld.new([
+          Card.new("seven-1", :seven, :diamonds, 5),
+          Card.new("seven-2", :seven, :spades, 5),
+          joker
+        ])
+
+      game = put_in(game.teams.a.melds, [meld])
+      game = update_player_hand_cards(game, current_player.id, [natural | current_player.hand])
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:ok, game} = Game.replace_joker(game, current_player.id, 0, natural.id)
+
+      [updated_meld] = game.teams.a.melds
+      refute Enum.any?(updated_meld.cards, &(&1.id == "joker"))
+      assert Enum.any?(updated_meld.cards, &(&1.id == natural.id))
+
+      current_player = Enum.find(game.players, &(&1.id == current_player.id))
+      assert Enum.any?(current_player.hand, &(&1.id == "joker"))
+    end
+
+    test "rejects replacing when the meld has no joker" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      natural = Card.new("natural", :seven, :hearts, 5)
+
+      meld =
+        Meld.new([
+          Card.new("seven-1", :seven, :diamonds, 5),
+          Card.new("seven-2", :seven, :spades, 5),
+          Card.new("seven-3", :seven, :clubs, 5)
+        ])
+
+      game = put_in(game.teams.a.melds, [meld])
+      game = update_player_hand_cards(game, current_player.id, [natural | current_player.hand])
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:error, :no_joker_in_meld} =
+               Game.replace_joker(game, current_player.id, 0, natural.id)
+    end
+
+    test "rejects replacing with a card of a different rank" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      joker = Card.new("joker", :joker, nil, 50)
+      wrong_card = Card.new("wrong", :eight, :hearts, 5)
+
+      meld =
+        Meld.new([
+          Card.new("seven-1", :seven, :diamonds, 5),
+          Card.new("seven-2", :seven, :spades, 5),
+          joker
+        ])
+
+      game = put_in(game.teams.a.melds, [meld])
+      game = update_player_hand_cards(game, current_player.id, [wrong_card | current_player.hand])
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:error, :invalid_replacement_card} =
+               Game.replace_joker(game, current_player.id, 0, wrong_card.id)
+    end
+  end
+
   defp add_players(game, players) do
     Enum.reduce(players, game, fn {user_id, seat, team}, acc ->
       {:ok, updated} = Game.add_player(acc, user_id, seat, team)
