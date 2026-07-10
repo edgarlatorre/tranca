@@ -24,11 +24,26 @@ defmodule TrancaWeb.LobbyLiveTest do
       assert html =~ "open-game"
     end
 
-    test "creates a game and redirects", %{conn: conn} do
+    test "creates a 2-player game and redirects", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/lobby")
 
-      assert {:error, {:live_redirect, %{to: "/games/" <> _game_id}}} =
-               render_click(view, "create_game")
+      assert {:error, {:live_redirect, %{to: "/games/" <> game_id}}} =
+               render_click(view, "create_game", %{"player_count" => "2"})
+
+      assert String.length(game_id) == 6
+      assert {:ok, game} = Tranca.Games.get_game(game_id)
+      assert game.player_count == 2
+    end
+
+    test "creates a 4-player game and redirects", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/lobby")
+
+      assert {:error, {:live_redirect, %{to: "/games/" <> game_id}}} =
+               render_click(view, "create_game", %{"player_count" => "4"})
+
+      assert String.length(game_id) == 6
+      assert {:ok, game} = Tranca.Games.get_game(game_id)
+      assert game.player_count == 4
     end
 
     test "joins a game with a valid code", %{conn: conn} do

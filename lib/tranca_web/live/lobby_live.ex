@@ -27,15 +27,16 @@ defmodule TrancaWeb.LobbyLive do
   end
 
   @impl true
-  def handle_event("create_game", _params, socket) do
+  def handle_event("create_game", %{"player_count" => count}, socket) do
+    player_count = String.to_integer(count)
     game_id = generate_game_code()
 
-    case Games.create_game_record(game_id, 4) do
-      {:ok, _record} ->
-        Phoenix.PubSub.broadcast(Tranca.PubSub, "lobby", :lobby_updated)
-        {:noreply, push_navigate(socket, to: "/games/#{game_id}")}
-
-      {:error, _changeset} ->
+    with {:ok, _record} <- Games.create_game_record(game_id, player_count),
+         {:ok, _pid} <- Games.new_game(game_id, player_count) do
+      Phoenix.PubSub.broadcast(Tranca.PubSub, "lobby", :lobby_updated)
+      {:noreply, push_navigate(socket, to: "/games/#{game_id}")}
+    else
+      {:error, _reason} ->
         {:noreply, put_flash(socket, :error, "Could not create game. Please try again.")}
     end
   end
@@ -63,6 +64,12 @@ defmodule TrancaWeb.LobbyLive do
   end
 
   defp generate_game_code do
-    :crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)
+    bytes = :crypto.strong_rand_bytes(8)
+
+    bytes
+    |> Base.encode64()
+    |> String.replace(~r/[^a-zA-Z0-9]/, "")
+    |> String.slice(0, 6)
+    |> String.downcase()
   end
 end
