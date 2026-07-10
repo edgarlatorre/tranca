@@ -366,12 +366,59 @@ defmodule Tranca.GameTest do
   end
 
   describe "meld/3" do
-    test "lays down a valid meld and removes cards from hand" do
+    test "lays down a valid first meld meeting the minimum points" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      [_card_1, _card_2, _card_3, card_4 | rest] = current_player.hand
+
+      # Replace four cards with aces for an 80-point first meld.
+      matching_cards = [
+        Card.new("meld-1", :ace, :hearts, 20),
+        Card.new("meld-2", :ace, :diamonds, 20),
+        Card.new("meld-3", :ace, :spades, 20),
+        Card.new("meld-4", :ace, :clubs, 20)
+      ]
+
+      game = update_player_hand_cards(game, current_player.id, matching_cards ++ [card_4 | rest])
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      meld_ids = Enum.map(matching_cards, & &1.id)
+      assert {:ok, game} = Game.meld(game, current_player.id, meld_ids)
+
+      current_player = Enum.at(game.players, game.turn)
+      refute Enum.any?(current_player.hand, &(&1.id in meld_ids))
+      assert length(game.teams.a.melds) == 1
+      assert game.teams.a.first_meld_done
+    end
+
+    test "rejects a first meld below the 75-point minimum" do
       game = started_game()
       current_player = Enum.at(game.players, game.turn)
       [_card_1, _card_2, card_3 | rest] = current_player.hand
 
-      # Replace three cards with matching ranks for a deterministic meld.
+      matching_cards = [
+        Card.new("meld-1", :seven, :hearts, 5),
+        Card.new("meld-2", :seven, :diamonds, 5),
+        Card.new("meld-3", :seven, :spades, 5)
+      ]
+
+      game = update_player_hand_cards(game, current_player.id, matching_cards ++ [card_3 | rest])
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      meld_ids = Enum.map(matching_cards, & &1.id)
+      assert {:error, :first_meld_minimum_not_met} = Game.meld(game, current_player.id, meld_ids)
+      refute game.teams.a.first_meld_done
+    end
+
+    test "allows a low meld after the first meld is done" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      [_card_1, _card_2, card_3 | rest] = current_player.hand
+
+      game = put_in(game.teams.a.first_meld_done, true)
+
       matching_cards = [
         Card.new("meld-1", :seven, :hearts, 5),
         Card.new("meld-2", :seven, :diamonds, 5),
@@ -384,9 +431,6 @@ defmodule Tranca.GameTest do
 
       meld_ids = Enum.map(matching_cards, & &1.id)
       assert {:ok, game} = Game.meld(game, current_player.id, meld_ids)
-
-      current_player = Enum.at(game.players, game.turn)
-      refute Enum.any?(current_player.hand, &(&1.id in meld_ids))
       assert length(game.teams.a.melds) == 1
     end
 

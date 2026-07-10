@@ -77,6 +77,14 @@ defmodule Tranca.Game.Meld do
   end
 
   @doc """
+  Returns the total point value of the cards in the meld.
+  """
+  @spec points(t()) :: integer()
+  def points(%__MODULE__{cards: cards}) do
+    Enum.reduce(cards, 0, &(&1.value + &2))
+  end
+
+  @doc """
   Returns true if the meld is a canastra (7 or more cards).
   """
   @spec canastra?(t()) :: boolean()

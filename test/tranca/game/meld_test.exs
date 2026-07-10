@@ -118,6 +118,19 @@ defmodule Tranca.Game.MeldTest do
     end
   end
 
+  describe "points/1" do
+    test "sums card values in the meld" do
+      meld =
+        Meld.new([
+          Card.new("1", :ace, :hearts, 20),
+          Card.new("2", :ace, :diamonds, 20),
+          Card.new("3", :two, :spades, 20)
+        ])
+
+      assert Meld.points(meld) == 60
+    end
+  end
+
   describe "canastra classification" do
     test "classifies seven natural cards as canastra limpa" do
       cards =
