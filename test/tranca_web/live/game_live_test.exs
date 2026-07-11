@@ -325,6 +325,24 @@ defmodule TrancaWeb.GameLiveTest do
       refute Enum.any?(updated_meld.cards, &(&1.rank == :joker))
       assert Enum.any?(updated_meld.cards, &(&1.id == natural.id))
     end
+
+    test "shows black three discard block message", %{conn: conn} do
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
+      setup_playing_game("black-three-game", 2, ["player-1", "player-2"])
+
+      black_three = Card.new("black-three", :three, :spades, 5)
+
+      {:ok, pid} = Tranca.Games.Supervisor.lookup("black-three-game")
+
+      :sys.replace_state(pid, fn state ->
+        %{state | game: %{state.game | discard_pile: [black_three]}}
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/games/black-three-game")
+
+      assert has_element?(view, "#black-three-block", "blocked by a black three")
+      assert has_element?(view, "button[phx-click='draw_discard'][disabled]")
+    end
   end
 
   defp setup_waiting_game(game_id, player_count, user_ids) do

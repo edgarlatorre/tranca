@@ -85,6 +85,14 @@
           discard_disabled={not @can_draw or @discard_blocked}
         />
 
+        <%= if @discard_blocked do %>
+          <div id="black-three-block" class="card bg-error/10 text-error p-4 text-center">
+            <p>
+              The discard pile is blocked by a black three. Draw from the deck instead.
+            </p>
+          </div>
+        <% end %>
+
         <section class="card bg-base-200 shadow p-4 space-y-4">
           <h2 class="text-xl font-semibold text-center">Your Hand</h2>
 
