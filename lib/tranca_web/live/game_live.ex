@@ -126,6 +126,25 @@ defmodule TrancaWeb.GameLive do
     end
   end
 
+  def handle_event("replace_joker", %{"meld_index" => index}, socket) do
+    game_id = socket.assigns.game_id
+    player_id = player_id(socket)
+
+    case socket.assigns.selected_card_ids do
+      [card_id] ->
+        case Games.replace_joker(game_id, player_id, String.to_integer(index), card_id) do
+          {:ok, _game} ->
+            {:noreply, assign(socket, selected_card_ids: [], message: nil)}
+
+          {:error, reason} ->
+            {:noreply, assign(socket, message: format_error(reason))}
+        end
+
+      _ ->
+        {:noreply, assign(socket, message: "Select a single card to replace the joker.")}
+    end
+  end
+
   defp load_game(socket) do
     game_id = socket.assigns.game_id
     user_id = socket.assigns.user_id
@@ -217,5 +236,8 @@ defmodule TrancaWeb.GameLive do
   defp format_error(:discard_blocked_by_black_three),
     do: "Discard pile is blocked by a black three."
 
+  defp format_error(:no_joker_in_meld), do: "That meld has no joker to replace."
+  defp format_error(:invalid_replacement_card), do: "Selected card cannot replace the joker."
+  defp format_error(:invalid_meld_index), do: "Invalid meld."
   defp format_error(_reason), do: "Could not perform that action."
 end

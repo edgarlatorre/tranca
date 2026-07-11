@@ -198,10 +198,17 @@ defmodule TrancaWeb.GameLiveTest do
       conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
       setup_playing_game("draw-discard-game", 2, ["player-1", "player-2"])
 
+      safe_discard = Card.new("safe-discard", :five, :hearts, 5)
+
+      {:ok, pid} = Tranca.Games.Supervisor.lookup("draw-discard-game")
+
+      :sys.replace_state(pid, fn state ->
+        %{state | game: %{state.game | discard_pile: [safe_discard]}}
+      end)
+
       {:ok, view, _html} = live(conn, ~p"/games/draw-discard-game")
 
       assert {:ok, game_before} = Games.get_game("draw-discard-game")
-      discard_top = hd(game_before.discard_pile)
       hand_size = length(Enum.find(game_before.players, &(&1.user_id == "player-1")).hand)
 
       view
@@ -211,7 +218,7 @@ defmodule TrancaWeb.GameLiveTest do
       assert {:ok, game_after} = Games.get_game("draw-discard-game")
       player = Enum.find(game_after.players, &(&1.user_id == "player-1"))
       assert length(player.hand) == hand_size + 1
-      assert discard_top in player.hand
+      assert safe_discard in player.hand
       assert game_after.drawn_this_turn
     end
 
@@ -273,6 +280,50 @@ defmodule TrancaWeb.GameLiveTest do
 
       assert has_element?(view, "#morto-indicator", "Taken")
       assert has_element?(view, "#morto-indicator", "Team A")
+    end
+
+    test "replaces a joker in a meld with a selected card", %{conn: conn} do
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
+      setup_playing_game("replace-joker-game", 2, ["player-1", "player-2"])
+
+      joker = Card.new("joker", :joker, nil, 50)
+      natural = Card.new("natural", :seven, :hearts, 5)
+
+      meld =
+        Meld.new([
+          Card.new("seven-1", :seven, :diamonds, 5),
+          Card.new("seven-2", :seven, :spades, 5),
+          joker
+        ])
+
+      {:ok, pid} = Tranca.Games.Supervisor.lookup("replace-joker-game")
+
+      :sys.replace_state(pid, fn state ->
+        game = state.game
+
+        game =
+          game
+          |> put_in([Access.key(:teams), :a, Access.key(:melds)], [meld])
+          |> update_player_hand("player-0", [natural])
+          |> Map.put(:drawn_this_turn, true)
+
+        %{state | game: game}
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/games/replace-joker-game")
+
+      view
+      |> element("button[phx-value-card_id='#{natural.id}']")
+      |> render_click()
+
+      view
+      |> element("button", "Replace joker")
+      |> render_click()
+
+      assert {:ok, game} = Games.get_game("replace-joker-game")
+      [updated_meld] = game.teams.a.melds
+      refute Enum.any?(updated_meld.cards, &(&1.rank == :joker))
+      assert Enum.any?(updated_meld.cards, &(&1.id == natural.id))
     end
   end
 

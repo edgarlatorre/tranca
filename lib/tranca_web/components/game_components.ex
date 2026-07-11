@@ -138,6 +138,7 @@ defmodule TrancaWeb.GameComponents do
   """
   attr :teams, :map, required: true
   attr :on_add_to_meld, :string, default: nil
+  attr :on_replace_joker, :string, default: nil
   attr :selected_card_id, :string, default: nil
 
   def game_melds(assigns) do
@@ -159,16 +160,29 @@ defmodule TrancaWeb.GameComponents do
                     <% end %>
                   </div>
 
-                  <%= if @on_add_to_meld && @selected_card_id do %>
-                    <button
-                      type="button"
-                      phx-click={@on_add_to_meld}
-                      phx-value-meld_index={index}
-                      class="text-xs btn btn-xs btn-ghost"
-                    >
-                      Add selected card
-                    </button>
-                  <% end %>
+                  <div class="flex flex-wrap gap-2">
+                    <%= if @on_add_to_meld && @selected_card_id do %>
+                      <button
+                        type="button"
+                        phx-click={@on_add_to_meld}
+                        phx-value-meld_index={index}
+                        class="text-xs btn btn-xs btn-ghost"
+                      >
+                        Add selected card
+                      </button>
+                    <% end %>
+
+                    <%= if @on_replace_joker && @selected_card_id && joker_in_meld?(meld) do %>
+                      <button
+                        type="button"
+                        phx-click={@on_replace_joker}
+                        phx-value-meld_index={index}
+                        class="text-xs btn btn-xs btn-secondary"
+                      >
+                        Replace joker
+                      </button>
+                    <% end %>
+                  </div>
 
                   <%= if meld.type in [:limpa, :suja] do %>
                     <span class="badge badge-sm badge-success">
@@ -213,4 +227,8 @@ defmodule TrancaWeb.GameComponents do
   defp format_suit(:spades), do: "♠"
   defp format_suit(:clubs), do: "♣"
   defp format_suit(nil), do: ""
+
+  defp joker_in_meld?(meld) do
+    Enum.any?(meld.cards, &Card.wildcard?/1)
+  end
 end

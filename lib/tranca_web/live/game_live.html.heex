@@ -131,6 +131,7 @@
         <.game_melds
           teams={@game.teams}
           on_add_to_meld={if(length(@selected_card_ids) == 1 && @can_act, do: "add_to_meld")}
+          on_replace_joker={if(length(@selected_card_ids) == 1 && @can_act, do: "replace_joker")}
           selected_card_id={List.first(@selected_card_ids)}
         />
       <% end %>
