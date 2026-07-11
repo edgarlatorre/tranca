@@ -81,9 +81,25 @@
                   </ul>
                 <% end %>
               </div>
-              <.link navigate={"/games/#{game.game_id}"} class="btn btn-sm btn-primary">
-                Join
-              </.link>
+              <% full? = length(game.players) == game.player_count %>
+              <% seated? = Enum.any?(game.players, &(&1.user_id == @user_id)) %>
+
+              <%= cond do %>
+                <% full? and seated? -> %>
+                  <button
+                    phx-click="start_game"
+                    phx-value-game_id={game.game_id}
+                    class="btn btn-sm btn-secondary"
+                  >
+                    Start Game
+                  </button>
+                <% full? -> %>
+                  <span class="btn btn-sm btn-disabled">Full</span>
+                <% true -> %>
+                  <.link navigate={"/games/#{game.game_id}"} class="btn btn-sm btn-primary">
+                    Join
+                  </.link>
+              <% end %>
             </li>
           <% end %>
         </ul>

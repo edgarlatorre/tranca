@@ -105,6 +105,13 @@ defmodule Tranca.Games.Server do
     end
   end
 
+  def handle_call({:add_to_meld, player_id, meld_index, card_id}, _from, state) do
+    case Game.add_to_meld(state.game, player_id, meld_index, card_id) do
+      {:ok, game} -> broadcast_and_reply(state, game)
+      error -> {:reply, error, state}
+    end
+  end
+
   def handle_call({:replace_joker, player_id, meld_index, card_id}, _from, state) do
     case Game.replace_joker(state.game, player_id, meld_index, card_id) do
       {:ok, game} -> broadcast_and_reply(state, game)

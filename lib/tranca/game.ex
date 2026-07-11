@@ -356,6 +356,39 @@ defmodule Tranca.Game do
     do: {:error, :game_not_playing}
 
   @doc """
+  Adds a card from the player's hand to one of their team's existing melds.
+
+  The card must keep the meld valid (same rank for naturals, wildcard limit
+  respected). The team's first-meld flag must already be set.
+  """
+  @spec add_to_meld(t(), String.t(), integer(), String.t()) :: {:ok, t()} | {:error, atom()}
+  def add_to_meld(%__MODULE__{status: :playing} = game, player_id, meld_index, card_id) do
+    with :ok <- validate_turn(game, player_id),
+         :ok <- validate_drawn(game),
+         current_player = Enum.at(game.players, game.turn),
+         team when not is_nil(team) <- Map.get(game.teams, current_player.team),
+         meld when not is_nil(meld) <- Enum.at(team.melds, meld_index),
+         true <- team.first_meld_done,
+         {:ok, card, hand} <- remove_card_from_hand(game, player_id, card_id),
+         updated_meld = Meld.new(meld.cards ++ [card]),
+         true <- Meld.valid?(updated_meld) do
+      game =
+        game
+        |> update_player_hand(player_id, hand)
+        |> update_meld(current_player.team, meld_index, updated_meld)
+
+      {:ok, game}
+    else
+      nil -> {:error, :invalid_meld_index}
+      false -> {:error, :invalid_meld}
+      error -> error
+    end
+  end
+
+  def add_to_meld(%__MODULE__{}, _player_id, _meld_index, _card_id),
+    do: {:error, :game_not_playing}
+
+  @doc """
   Replaces a joker in one of the team's melds with a natural card from the
   player's hand.
 
@@ -582,6 +615,15 @@ defmodule Tranca.Game do
     teams =
       Map.update!(game.teams, team_id, fn team ->
         %{team | melds: team.melds ++ [meld], first_meld_done: true}
+      end)
+
+    %{game | teams: teams}
+  end
+
+  defp update_meld(game, team_id, meld_index, meld) do
+    teams =
+      Map.update!(game.teams, team_id, fn team ->
+        %{team | melds: List.replace_at(team.melds, meld_index, meld)}
       end)
 
     %{game | teams: teams}

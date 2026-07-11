@@ -751,6 +751,91 @@ defmodule Tranca.GameTest do
     end
   end
 
+  describe "add_to_meld/4" do
+    test "adds a matching card to an existing meld" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      meld =
+        Meld.new([
+          Card.new("seven-1", :seven, :hearts, 5),
+          Card.new("seven-2", :seven, :diamonds, 5),
+          Card.new("seven-3", :seven, :spades, 5)
+        ])
+
+      extra = Card.new("seven-4", :seven, :clubs, 5)
+
+      game =
+        game
+        |> put_in([Access.key(:teams), :a, Access.key(:melds)], [meld])
+        |> put_in([Access.key(:teams), :a, Access.key(:first_meld_done)], true)
+        |> update_player_hand_cards(current_player.id, [extra | current_player.hand])
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:ok, game} = Game.add_to_meld(game, current_player.id, 0, extra.id)
+
+      [updated_meld] = game.teams.a.melds
+      assert length(updated_meld.cards) == 4
+      refute Enum.any?(current_player.hand, &(&1.id == extra.id))
+    end
+
+    test "rejects adding a card of a different rank" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      meld =
+        Meld.new([
+          Card.new("seven-1", :seven, :hearts, 5),
+          Card.new("seven-2", :seven, :diamonds, 5),
+          Card.new("seven-3", :seven, :spades, 5)
+        ])
+
+      wrong = Card.new("eight", :eight, :clubs, 5)
+
+      game =
+        game
+        |> put_in([Access.key(:teams), :a, Access.key(:melds)], [meld])
+        |> put_in([Access.key(:teams), :a, Access.key(:first_meld_done)], true)
+        |> update_player_hand_cards(current_player.id, [wrong | current_player.hand])
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:error, :invalid_meld} = Game.add_to_meld(game, current_player.id, 0, wrong.id)
+    end
+
+    test "rejects adding to a meld before the first meld is done" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      meld =
+        Meld.new([
+          Card.new("seven-1", :seven, :hearts, 5),
+          Card.new("seven-2", :seven, :diamonds, 5),
+          Card.new("seven-3", :seven, :spades, 5)
+        ])
+
+      extra = Card.new("seven-4", :seven, :clubs, 5)
+
+      game =
+        game
+        |> put_in([Access.key(:teams), :a, Access.key(:melds)], [meld])
+        |> update_player_hand_cards(current_player.id, [extra | current_player.hand])
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:error, :invalid_meld} = Game.add_to_meld(game, current_player.id, 0, extra.id)
+    end
+
+    test "rejects adding to a meld out of turn" do
+      game = started_game()
+      other_player = Enum.at(game.players, 1)
+
+      assert {:error, :not_your_turn} =
+               Game.add_to_meld(game, other_player.id, 0, "any-card")
+    end
+  end
+
   describe "replace_joker/4" do
     test "replaces a joker with a matching natural card" do
       game = started_game()

@@ -125,5 +125,60 @@ defmodule TrancaWeb.LobbyLiveTest do
       [_, player2] = Enum.sort_by(game.players, & &1.seat)
       assert player2.team == :b
     end
+
+    test "creator is added to a newly created game", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/lobby")
+
+      assert {:error, {:live_redirect, %{to: "/games/" <> game_id}}} =
+               render_click(view, "create_game", %{"player_count" => "2"})
+
+      assert {:ok, game} = Games.get_game(game_id)
+      assert length(game.players) == 1
+    end
+
+    test "shows Start Game button when the game is full and user is seated", %{conn: conn} do
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "seated-user"})
+
+      {:ok, _record} = Games.create_game_record("startable-game", 2)
+      {:ok, _pid} = Games.new_game("startable-game", 2)
+      {:ok, _game} = Games.join_game("startable-game", "seated-user")
+      {:ok, _game} = Games.join_game("startable-game", "other-user")
+
+      {:ok, view, _html} = live(conn, ~p"/lobby")
+
+      assert has_element?(view, "#open-games", "startable-game")
+      assert has_element?(view, "#open-games", "Start Game")
+    end
+
+    test "does not show Start Game button when the game is full but user is not seated", %{
+      conn: conn
+    } do
+      {:ok, _record} = Games.create_game_record("full-not-seated", 2)
+      {:ok, _pid} = Games.new_game("full-not-seated", 2)
+      {:ok, _game} = Games.join_game("full-not-seated", "user-1")
+      {:ok, _game} = Games.join_game("full-not-seated", "user-2")
+
+      {:ok, view, _html} = live(conn, ~p"/lobby")
+
+      assert has_element?(view, "#open-games", "full-not-seated")
+      refute has_element?(view, "#open-games", "Start Game")
+    end
+
+    test "starts a full game and redirects all players", %{conn: conn} do
+      {:ok, _record} = Games.create_game_record("started-game", 2)
+      {:ok, _pid} = Games.new_game("started-game", 2)
+      {:ok, _game} = Games.join_game("started-game", "user-1")
+      {:ok, _game} = Games.join_game("started-game", "user-2")
+
+      {:ok, view, _html} = live(conn, ~p"/lobby")
+
+      assert {:error, {:live_redirect, %{to: "/games/started-game"}}} =
+               render_click(view, "start_game", %{"game_id" => "started-game"})
+
+      assert {:ok, game} = Games.get_game("started-game")
+      assert game.status == :playing
+      assert {:ok, record} = Games.get_game_record("started-game")
+      assert record.status == "playing"
+    end
   end
 end

@@ -8,6 +8,7 @@ defmodule TrancaWeb.Router do
     plug :put_root_layout, html: {TrancaWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug TrancaWeb.Plugs.UserSession
   end
 
   pipeline :api do
@@ -19,6 +20,7 @@ defmodule TrancaWeb.Router do
 
     get "/", PageController, :home
     live "/lobby", LobbyLive, :index
+    live "/games/:id", GameLive, :index
   end
 
   # Other scopes may use custom stacks.

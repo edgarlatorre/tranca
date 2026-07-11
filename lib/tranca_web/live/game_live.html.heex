@@ -1,0 +1,147 @@
+<Layouts.app flash={@flash} current_scope={@current_scope}>
+  <div class="space-y-6">
+    <%= if @error do %>
+      <div class="card bg-error/10 text-error p-6 text-center">
+        <p class="text-lg font-semibold">{@error}</p>
+        <.link navigate={~p"/lobby"} class="btn btn-primary mt-4">Back to Lobby</.link>
+      </div>
+    <% else %>
+      <header class="text-center space-y-2">
+        <h1 class="text-3xl font-bold tracking-tight">Game {@game_id}</h1>
+        <p class="text-lg opacity-75">
+          <%= case @game.status do %>
+            <% :waiting -> %>
+              Waiting for players
+            <% :playing -> %>
+              Round {@game.round}
+            <% :finished -> %>
+              Game Over
+          <% end %>
+        </p>
+      </header>
+
+      <%= if @message do %>
+        <div class="card bg-warning/10 text-warning p-4 text-center">
+          <p>{@message}</p>
+        </div>
+      <% end %>
+
+      <section class="grid gap-4 sm:grid-cols-2">
+        <div class="card bg-base-200 shadow p-4 space-y-2">
+          <h2 class="text-xl font-semibold">Team A</h2>
+          <p class="text-2xl font-bold">{@game.teams.a.score}</p>
+          <ul class="text-sm opacity-75 space-y-1">
+            <%= for player <- @game.players, player.team == :a do %>
+              <li>
+                Seat {player.seat + 1}
+                <%= if @current_player && @current_player.id == player.id do %>
+                  <span class="badge badge-primary badge-sm ml-2">You</span>
+                <% end %>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+
+        <div class="card bg-base-200 shadow p-4 space-y-2">
+          <h2 class="text-xl font-semibold">Team B</h2>
+          <p class="text-2xl font-bold">{@game.teams.b.score}</p>
+          <ul class="text-sm opacity-75 space-y-1">
+            <%= for player <- @game.players, player.team == :b do %>
+              <li>
+                Seat {player.seat + 1}
+                <%= if @current_player && @current_player.id == player.id do %>
+                  <span class="badge badge-primary badge-sm ml-2">You</span>
+                <% end %>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      </section>
+
+      <%= if @game.status == :waiting do %>
+        <div class="card bg-base-200 shadow p-6 text-center space-y-4">
+          <p class="text-lg opacity-75">
+            {length(@game.players)} / {@game.player_count} players joined
+          </p>
+
+          <%= if @current_player do %>
+            <p class="text-sm opacity-60">
+              You are seated at position {@current_player.seat + 1}.
+            </p>
+          <% else %>
+            <p class="text-sm text-error">This game is full.</p>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%= if @game.status in [:playing, :finished] do %>
+        <.game_table
+          deck_count={length(@game.deck)}
+          discard_top={List.first(@game.discard_pile)}
+          morto_count={length(@game.morto)}
+          on_draw_deck="draw_deck"
+          on_draw_discard="draw_discard"
+          discard_disabled={not @can_draw or @discard_blocked}
+        />
+
+        <section class="card bg-base-200 shadow p-4 space-y-4">
+          <h2 class="text-xl font-semibold text-center">Your Hand</h2>
+
+          <%= if @current_player do %>
+            <.game_hand
+              cards={@current_player.hand}
+              selected_ids={@selected_card_ids}
+              on_select="select_card"
+              disabled={@game.status == :finished}
+            />
+
+            <div class="flex flex-wrap justify-center gap-2">
+              <button
+                id="meld-selected"
+                type="button"
+                phx-click="meld_selected"
+                disabled={length(@selected_card_ids) < 3 or not @can_act}
+                class={[
+                  "btn btn-primary",
+                  (length(@selected_card_ids) < 3 or not @can_act) && "btn-disabled"
+                ]}
+              >
+                Meld Selected
+              </button>
+
+              <button
+                id="discard-selected"
+                type="button"
+                phx-click="discard_selected"
+                disabled={length(@selected_card_ids) != 1 or not @can_act}
+                class={[
+                  "btn btn-secondary",
+                  (length(@selected_card_ids) != 1 or not @can_act) && "btn-disabled"
+                ]}
+              >
+                Discard
+              </button>
+            </div>
+          <% else %>
+            <p class="text-center text-error">You are not seated at this table.</p>
+          <% end %>
+        </section>
+
+        <.game_melds
+          teams={@game.teams}
+          on_add_to_meld={if(length(@selected_card_ids) == 1 && @can_act, do: "add_to_meld")}
+          selected_card_id={List.first(@selected_card_ids)}
+        />
+      <% end %>
+
+      <%= if @game.status == :finished do %>
+        <div class="card bg-success/10 text-success p-6 text-center space-y-4">
+          <p class="text-2xl font-bold">
+            Team {String.upcase(to_string(@game.winner))} wins!
+          </p>
+          <.link navigate={~p"/lobby"} class="btn btn-primary">Back to Lobby</.link>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</Layouts.app>
