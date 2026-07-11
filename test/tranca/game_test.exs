@@ -315,6 +315,7 @@ defmodule Tranca.GameTest do
 
       current_player = Enum.find(game.players, &(&1.id == current_player.id))
       assert game.morto == []
+      assert game.morto_taken_by == :a
       assert length(current_player.hand) == 11
     end
 
@@ -328,6 +329,7 @@ defmodule Tranca.GameTest do
       {:ok, game} = Game.discard(game, current_player.id, last_card.id)
 
       assert length(game.morto) == 11
+      assert game.morto_taken_by == nil
       current_player = Enum.find(game.players, &(&1.id == current_player.id))
       assert current_player.hand == []
     end
@@ -378,6 +380,7 @@ defmodule Tranca.GameTest do
 
       teammate = Enum.find(game.players, &(&1.id == teammate.id))
       assert game.morto == []
+      assert game.morto_taken_by == :a
       assert length(teammate.hand) == 22
     end
   end

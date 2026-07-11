@@ -248,6 +248,32 @@ defmodule TrancaWeb.GameLiveTest do
       assert has_element?(view, "#discard-selected[disabled]")
       assert has_element?(view, "button[phx-click='draw_discard'][disabled]")
     end
+
+    test "shows morto indicator when morto is available", %{conn: conn} do
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
+      setup_playing_game("morto-available-game", 2, ["player-1", "player-2"])
+
+      {:ok, view, _html} = live(conn, ~p"/games/morto-available-game")
+
+      assert has_element?(view, "#morto-indicator", "11")
+      refute has_element?(view, "#morto-indicator", "Taken")
+    end
+
+    test "shows morto indicator with team when taken", %{conn: conn} do
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
+      setup_playing_game("morto-taken-game", 2, ["player-1", "player-2"])
+
+      {:ok, pid} = Tranca.Games.Supervisor.lookup("morto-taken-game")
+
+      :sys.replace_state(pid, fn state ->
+        %{state | game: %{state.game | morto: [], morto_taken_by: :a}}
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/games/morto-taken-game")
+
+      assert has_element?(view, "#morto-indicator", "Taken")
+      assert has_element?(view, "#morto-indicator", "Team A")
+    end
   end
 
   defp setup_waiting_game(game_id, player_count, user_ids) do

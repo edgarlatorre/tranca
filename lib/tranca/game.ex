@@ -23,6 +23,7 @@ defmodule Tranca.Game do
           teams: %{a: Team.t(), b: Team.t()},
           deck: [Card.t()],
           morto: [Card.t()],
+          morto_taken_by: Team.id() | nil,
           discard_pile: [Card.t()],
           turn: integer(),
           drawn_this_turn: boolean(),
@@ -39,6 +40,7 @@ defmodule Tranca.Game do
     :teams,
     :deck,
     :morto,
+    :morto_taken_by,
     :discard_pile,
     :turn,
     :drawn_this_turn,
@@ -63,6 +65,7 @@ defmodule Tranca.Game do
       teams: %{a: Team.new(:a), b: Team.new(:b)},
       deck: [],
       morto: [],
+      morto_taken_by: nil,
       discard_pile: [],
       turn: 0,
       drawn_this_turn: false,
@@ -241,6 +244,7 @@ defmodule Tranca.Game do
         game
         |> give_cards_to_player(target_id, game.morto)
         |> Map.put(:morto, [])
+        |> Map.put(:morto_taken_by, current_player.team)
 
       {:ok, game}
     else

@@ -79,6 +79,7 @@
           deck_count={length(@game.deck)}
           discard_top={List.first(@game.discard_pile)}
           morto_count={length(@game.morto)}
+          morto_taken_by={@game.morto_taken_by}
           on_draw_deck="draw_deck"
           on_draw_discard="draw_discard"
           discard_disabled={not @can_draw or @discard_blocked}

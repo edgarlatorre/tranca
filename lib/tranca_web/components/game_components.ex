@@ -73,6 +73,7 @@ defmodule TrancaWeb.GameComponents do
   attr :deck_count, :integer, required: true
   attr :discard_top, Card, default: nil
   attr :morto_count, :integer, required: true
+  attr :morto_taken_by, :atom, default: nil
   attr :on_draw_deck, :string, required: true
   attr :on_draw_discard, :string, required: true
   attr :discard_disabled, :boolean, default: false
@@ -110,15 +111,23 @@ defmodule TrancaWeb.GameComponents do
         <% end %>
       </button>
 
-      <div class="card bg-base-200 shadow p-4 flex flex-col items-center justify-center gap-2">
+      <div
+        id="morto-indicator"
+        class="card bg-base-200 shadow p-4 flex flex-col items-center justify-center gap-2"
+      >
         <span class="text-sm opacity-75">Morto</span>
         <span class="text-2xl font-bold">
-          <%= if @morto_count == 0 do %>
+          <%= if @morto_taken_by do %>
             Taken
           <% else %>
             {@morto_count}
           <% end %>
         </span>
+        <%= if @morto_taken_by do %>
+          <span class="text-xs badge badge-sm badge-info">
+            Team {String.upcase(to_string(@morto_taken_by))}
+          </span>
+        <% end %>
       </div>
     </div>
     """
