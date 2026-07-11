@@ -189,6 +189,39 @@ defmodule Tranca.Game do
   end
 
   @doc """
+  Returns a breakdown of the current hand's scoring per team.
+
+  Useful for displaying a round-end summary before applying the scores.
+  """
+  @spec round_breakdown(t()) :: %{Team.id() => map()}
+  def round_breakdown(%__MODULE__{} = game) do
+    Map.new(game.teams, fn {team_id, team} ->
+      meld_points = Enum.reduce(team.melds, 0, &(&2 + Meld.points(&1)))
+
+      canastra_bonus =
+        Enum.reduce(team.melds, 0, fn meld, acc ->
+          case meld.type do
+            :limpa -> acc + 500
+            :suja -> acc + 300
+            :normal -> acc
+          end
+        end)
+
+      red_three_bonus = red_three_bonus(team)
+      black_three_penalty = black_three_penalty(game, team_id)
+
+      {team_id,
+       %{
+         meld_points: meld_points,
+         canastra_bonus: canastra_bonus,
+         red_three_bonus: red_three_bonus,
+         black_three_penalty: black_three_penalty,
+         round_total: meld_points + canastra_bonus + red_three_bonus + black_three_penalty
+       }}
+    end)
+  end
+
+  @doc """
   Scores the current hand and updates each team's total score.
 
   Includes meld card values, canastra bonuses, red 3 bonuses, and black 3

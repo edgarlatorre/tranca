@@ -525,6 +525,56 @@ defmodule Tranca.GameTest do
     end
   end
 
+  describe "round_breakdown/1" do
+    test "returns points, bonuses, and penalties per team" do
+      game = started_game()
+      [player_0, player_1] = Enum.sort_by(game.players, & &1.seat)
+
+      limpa =
+        Meld.new(
+          for {suit, i} <-
+                Enum.with_index([
+                  :hearts,
+                  :diamonds,
+                  :spades,
+                  :clubs,
+                  :hearts,
+                  :diamonds,
+                  :spades
+                ]) do
+            Card.new("limpa-#{i}", :seven, suit, 5)
+          end
+        )
+
+      red_three_meld =
+        Meld.new([
+          Card.new("r3", :three, :hearts, 5),
+          Card.new("seven-1", :seven, :hearts, 5),
+          Card.new("seven-2", :seven, :diamonds, 5)
+        ])
+
+      game =
+        game
+        |> put_in([Access.key(:teams), :a, Access.key(:melds)], [limpa, red_three_meld])
+        |> update_player_hand_cards(player_0.id, [Card.new("b3", :three, :spades, 5)])
+        |> update_player_hand_cards(player_1.id, [Card.new("b3-2", :three, :clubs, 5)])
+
+      breakdown = Game.round_breakdown(game)
+
+      # Limpa: 7 * 5 = 35 meld points + 500 canastra
+      # Red three meld: 3 * 5 = 15 meld points + 100 red three bonus
+      # Black three penalty: -100
+      assert breakdown.a.meld_points == 35 + 15
+      assert breakdown.a.canastra_bonus == 500
+      assert breakdown.a.red_three_bonus == 100
+      assert breakdown.a.black_three_penalty == -100
+      assert breakdown.a.round_total == 35 + 15 + 500 + 100 - 100
+
+      assert breakdown.b.black_three_penalty == -100
+      assert breakdown.b.round_total == -100
+    end
+  end
+
   describe "score_round/1" do
     test "scores meld points, canastra bonuses, red threes, and black threes" do
       game = started_game()

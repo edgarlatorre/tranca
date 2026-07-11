@@ -30,6 +30,7 @@ defmodule TrancaWeb.GameLive do
       |> assign(:error, nil)
       |> assign(:message, nil)
       |> assign(:selected_card_ids, [])
+      |> assign(:show_round_end, false)
       |> assign(:current_scope, nil)
       |> load_game()
       |> assign_helpers()
@@ -143,6 +144,27 @@ defmodule TrancaWeb.GameLive do
       _ ->
         {:noreply, assign(socket, message: "Select a single card to replace the joker.")}
     end
+  end
+
+  def handle_event("score_round", _params, socket) do
+    case Games.score_round(socket.assigns.game_id) do
+      {:ok, game} ->
+        socket =
+          socket
+          |> assign(:game, game)
+          |> assign(:show_round_end, game.status != :finished)
+          |> assign(:round_breakdown, Game.round_breakdown(game))
+          |> assign_helpers()
+
+        {:noreply, socket}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, message: format_error(reason))}
+    end
+  end
+
+  def handle_event("continue_round", _params, socket) do
+    {:noreply, assign(socket, show_round_end: false)}
   end
 
   defp load_game(socket) do

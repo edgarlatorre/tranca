@@ -93,6 +93,66 @@
           </div>
         <% end %>
 
+        <%= if @current_player && not @show_round_end do %>
+          <div class="text-center">
+            <button
+              id="score-round"
+              type="button"
+              phx-click="score_round"
+              class="btn btn-secondary"
+            >
+              Score Round
+            </button>
+          </div>
+        <% end %>
+
+        <%= if @show_round_end do %>
+          <div id="round-end" class="card bg-base-200 shadow p-6 space-y-6">
+            <h2 class="text-2xl font-bold text-center">Round {@game.round} Complete</h2>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <%= for {team_id, breakdown} <- @round_breakdown do %>
+                <div class="card bg-base-100 shadow p-4 space-y-2">
+                  <h3 class="text-lg font-semibold">Team {String.upcase(to_string(team_id))}</h3>
+                  <ul class="text-sm space-y-1">
+                    <li class="flex justify-between">
+                      <span>Meld points</span>
+                      <span>{breakdown.meld_points}</span>
+                    </li>
+                    <li class="flex justify-between">
+                      <span>Canastra bonus</span>
+                      <span>+{breakdown.canastra_bonus}</span>
+                    </li>
+                    <li class="flex justify-between">
+                      <span>Red three bonus</span>
+                      <span>+{breakdown.red_three_bonus}</span>
+                    </li>
+                    <li class="flex justify-between text-error">
+                      <span>Black three penalty</span>
+                      <span>{breakdown.black_three_penalty}</span>
+                    </li>
+                    <li class="flex justify-between border-t border-base-300 pt-1 font-bold">
+                      <span>Round total</span>
+                      <span>{breakdown.round_total}</span>
+                    </li>
+                  </ul>
+                </div>
+              <% end %>
+            </div>
+
+            <div class="text-center">
+              <button
+                id="continue-round"
+                type="button"
+                phx-click="continue_round"
+                class="btn btn-primary"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        <% end %>
+
         <section class="card bg-base-200 shadow p-4 space-y-4">
           <h2 class="text-xl font-semibold text-center">Your Hand</h2>
 

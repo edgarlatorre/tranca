@@ -343,6 +343,51 @@ defmodule TrancaWeb.GameLiveTest do
       assert has_element?(view, "#black-three-block", "blocked by a black three")
       assert has_element?(view, "button[phx-click='draw_discard'][disabled]")
     end
+
+    test "shows round end screen with breakdown", %{conn: conn} do
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
+      setup_playing_game("round-end-game", 2, ["player-1", "player-2"])
+
+      {:ok, pid} = Tranca.Games.Supervisor.lookup("round-end-game")
+
+      :sys.replace_state(pid, fn state ->
+        game = state.game
+
+        limpa =
+          Meld.new(
+            for {suit, i} <-
+                  Enum.with_index([
+                    :hearts,
+                    :diamonds,
+                    :spades,
+                    :clubs,
+                    :hearts,
+                    :diamonds,
+                    :spades
+                  ]) do
+              Card.new("limpa-#{i}", :seven, suit, 5)
+            end
+          )
+
+        game =
+          game
+          |> put_in([Access.key(:teams), :a, Access.key(:melds)], [limpa])
+          |> update_player_hand("player-0", [])
+          |> update_player_hand("player-1", [])
+
+        %{state | game: game}
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/games/round-end-game")
+
+      view
+      |> element("#score-round")
+      |> render_click()
+
+      assert has_element?(view, "#round-end", "Round 1 Complete")
+      assert has_element?(view, "#round-end", "Meld points")
+      assert has_element?(view, "#round-end", "Canastra bonus")
+    end
   end
 
   defp setup_waiting_game(game_id, player_count, user_ids) do
