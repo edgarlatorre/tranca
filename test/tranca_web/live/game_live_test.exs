@@ -388,6 +388,57 @@ defmodule TrancaWeb.GameLiveTest do
       assert has_element?(view, "#round-end", "Meld points")
       assert has_element?(view, "#round-end", "Canastra bonus")
     end
+
+    test "shows game over screen with scores and round history", %{conn: conn} do
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
+      setup_playing_game("game-over-game", 2, ["player-1", "player-2"])
+      {:ok, _} = Games.save_round_result("game-over-game", 1, 1500, 800, "a")
+
+      {:ok, pid} = Tranca.Games.Supervisor.lookup("game-over-game")
+
+      :sys.replace_state(pid, fn state ->
+        game = state.game
+
+        %{
+          state
+          | game: %{
+              game
+              | status: :finished,
+                winner: :a,
+                teams: %{a: %{game.teams.a | score: 1500}, b: %{game.teams.b | score: 800}}
+            }
+        }
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/games/game-over-game")
+
+      assert has_element?(view, "#game-over", "Team A wins!")
+      assert has_element?(view, "#game-over", "1500")
+      assert has_element?(view, "#game-over", "800")
+      assert has_element?(view, "#game-over", "Round History")
+      assert has_element?(view, "#game-over", "Round 1")
+    end
+
+    test "creates a rematch and redirects", %{conn: conn} do
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
+      setup_playing_game("rematch-game", 2, ["player-1", "player-2"])
+
+      {:ok, pid} = Tranca.Games.Supervisor.lookup("rematch-game")
+
+      :sys.replace_state(pid, fn state ->
+        game = state.game
+        %{state | game: %{game | status: :finished, winner: :a}}
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/games/rematch-game")
+
+      assert {:error, {:live_redirect, %{to: "/games/" <> new_game_id}}} =
+               render_click(view, "rematch")
+
+      assert String.length(new_game_id) == 6
+      assert {:ok, game} = Games.get_game(new_game_id)
+      assert game.player_count == 2
+    end
   end
 
   defp setup_waiting_game(game_id, player_count, user_ids) do

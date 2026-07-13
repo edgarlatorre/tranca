@@ -205,11 +205,56 @@
       <% end %>
 
       <%= if @game.status == :finished do %>
-        <div class="card bg-success/10 text-success p-6 text-center space-y-4">
-          <p class="text-2xl font-bold">
+        <div id="game-over" class="card bg-success/10 text-success p-6 text-center space-y-6">
+          <p class="text-3xl font-bold">
             Team {String.upcase(to_string(@game.winner))} wins!
           </p>
-          <.link navigate={~p"/lobby"} class="btn btn-primary">Back to Lobby</.link>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="card bg-base-100 shadow p-4">
+              <p class="text-sm opacity-75">Team A</p>
+              <p class="text-3xl font-bold">{@game.teams.a.score}</p>
+            </div>
+
+            <div class="card bg-base-100 shadow p-4">
+              <p class="text-sm opacity-75">Team B</p>
+              <p class="text-3xl font-bold">{@game.teams.b.score}</p>
+            </div>
+          </div>
+
+          <%= if @rounds != [] do %>
+            <div class="text-left space-y-2">
+              <h3 class="text-lg font-semibold text-center">Round History</h3>
+              <ul class="space-y-2">
+                <%= for round <- @rounds do %>
+                  <li class="flex justify-between items-center card bg-base-100 shadow p-3">
+                    <span class="font-semibold">Round {round.round_number}</span>
+                    <span class="text-sm">
+                      A {round.team_a_score} · B {round.team_b_score}
+                      <%= if round.winner do %>
+                        · Winner {String.upcase(round.winner)}
+                      <% end %>
+                    </span>
+                  </li>
+                <% end %>
+              </ul>
+            </div>
+          <% end %>
+
+          <div class="flex flex-wrap justify-center gap-3">
+            <button
+              id="rematch"
+              type="button"
+              phx-click="rematch"
+              class="btn btn-secondary"
+            >
+              Rematch
+            </button>
+
+            <.link navigate={~p"/lobby"} class="btn btn-primary">
+              Back to Lobby
+            </.link>
+          </div>
         </div>
       <% end %>
     <% end %>

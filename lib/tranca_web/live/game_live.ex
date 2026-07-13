@@ -31,8 +31,10 @@ defmodule TrancaWeb.GameLive do
       |> assign(:message, nil)
       |> assign(:selected_card_ids, [])
       |> assign(:show_round_end, false)
+      |> assign(:rounds, [])
       |> assign(:current_scope, nil)
       |> load_game()
+      |> load_rounds()
       |> assign_helpers()
 
     {:ok, socket}
@@ -47,6 +49,10 @@ defmodule TrancaWeb.GameLive do
       |> assign_helpers()
 
     {:noreply, socket}
+  end
+
+  def handle_info({:rematch_created, new_game_id}, socket) do
+    {:noreply, push_navigate(socket, to: "/games/#{new_game_id}")}
   end
 
   @impl true
@@ -167,6 +173,37 @@ defmodule TrancaWeb.GameLive do
     {:noreply, assign(socket, show_round_end: false)}
   end
 
+  def handle_event("rematch", _params, socket) do
+    game_id = socket.assigns.game_id
+    user_id = socket.assigns.user_id
+
+    with {:ok, game} <- Games.get_game(game_id),
+         {:ok, new_record} <- Games.create_game_record(generate_game_code(), game.player_count),
+         {:ok, _pid} <- Games.new_game(new_record.game_id, game.player_count),
+         {:ok, _game} <- Games.join_game(new_record.game_id, user_id) do
+      Phoenix.PubSub.broadcast(
+        Tranca.PubSub,
+        "game:#{game_id}",
+        {:rematch_created, new_record.game_id}
+      )
+
+      {:noreply, push_navigate(socket, to: "/games/#{new_record.game_id}")}
+    else
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Could not create rematch. Please try again.")}
+    end
+  end
+
+  defp generate_game_code do
+    bytes = :crypto.strong_rand_bytes(8)
+
+    bytes
+    |> Base.encode64()
+    |> String.replace(~r/[^a-zA-Z0-9]/, "")
+    |> String.slice(0, 6)
+    |> String.downcase()
+  end
+
   defp load_game(socket) do
     game_id = socket.assigns.game_id
     user_id = socket.assigns.user_id
@@ -185,8 +222,22 @@ defmodule TrancaWeb.GameLive do
     end
   end
 
+  defp load_rounds(%{assigns: %{game: %{status: :finished}}} = socket) do
+    case Games.list_rounds(socket.assigns.game_id) do
+      {:ok, rounds} -> assign(socket, rounds: rounds)
+      {:error, _} -> assign(socket, rounds: [])
+    end
+  end
+
+  defp load_rounds(socket), do: assign(socket, rounds: [])
+
   defp assign_helpers(%{assigns: %{game: nil}} = socket) do
-    assign(socket, my_turn: false, can_draw: false, can_act: false, discard_blocked: false)
+    assign(socket,
+      my_turn: false,
+      can_draw: false,
+      can_act: false,
+      discard_blocked: false
+    )
   end
 
   defp assign_helpers(socket) do

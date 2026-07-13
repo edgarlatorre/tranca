@@ -52,6 +52,25 @@ defmodule Tranca.Games.PersistenceTest do
     end
   end
 
+  describe "list_rounds/1" do
+    test "returns saved rounds ordered by round number" do
+      {:ok, _record} = Games.create_game_record("game-1", 2, 3000)
+
+      {:ok, _} = Games.save_round_result("game-1", 2, 500, 300, :b)
+      {:ok, _} = Games.save_round_result("game-1", 1, 1500, 800, :a)
+
+      assert {:ok, [round_1, round_2]} = Games.list_rounds("game-1")
+      assert round_1.round_number == 1
+      assert round_1.team_a_score == 1500
+      assert round_2.round_number == 2
+      assert round_2.team_b_score == 300
+    end
+
+    test "returns an error when the game is missing" do
+      assert {:error, :game_not_found} = Games.list_rounds("missing")
+    end
+  end
+
   describe "get_game_record/1" do
     test "returns the persisted game" do
       {:ok, record} = Games.create_game_record("game-1", 2, 3000)

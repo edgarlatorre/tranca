@@ -128,6 +128,22 @@ defmodule Tranca.Games do
   end
 
   @doc """
+  Returns the persisted round results for a game, ordered by round number.
+  """
+  @spec list_rounds(String.t()) :: {:ok, [GameRound.t()]} | {:error, :game_not_found}
+  def list_rounds(game_id) do
+    with {:ok, record} <- fetch_game_record(game_id) do
+      rounds =
+        GameRound
+        |> where(game_id: ^record.id)
+        |> order_by(asc: :round_number)
+        |> Repo.all()
+
+      {:ok, rounds}
+    end
+  end
+
+  @doc """
   Returns the persisted game record for the given game ID.
   """
   @spec get_game_record(String.t()) :: {:ok, GameRecord.t()} | {:error, :game_not_found}

@@ -1,6 +1,6 @@
 defmodule TrancaWeb.LobbyLiveTest do
   @moduledoc false
-  use TrancaWeb.ConnCase, async: true
+  use TrancaWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
 
