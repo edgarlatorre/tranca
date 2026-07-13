@@ -247,6 +247,7 @@ defmodule Tranca.Games do
       {:ok, game}
     else
       false -> {:error, :game_already_started}
+      {:ok, _open} -> {:error, :not_enough_players}
       error -> error
     end
   end

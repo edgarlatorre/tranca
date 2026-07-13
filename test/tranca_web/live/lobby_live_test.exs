@@ -180,5 +180,37 @@ defmodule TrancaWeb.LobbyLiveTest do
       assert {:ok, record} = Games.get_game_record("started-game")
       assert record.status == "playing"
     end
+
+    test "shows an error when starting a game with not enough players", %{conn: conn} do
+      {:ok, _record} = Games.create_game_record("not-enough-game", 2)
+      {:ok, _pid} = Games.new_game("not-enough-game", 2)
+      {:ok, _game} = Games.join_game("not-enough-game", "user-1")
+
+      {:ok, view, _html} = live(conn, ~p"/lobby")
+
+      html = render_click(view, "start_game", %{"game_id" => "not-enough-game"})
+
+      assert html =~ "Not enough players"
+    end
+
+    test "updates join code on validation", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/lobby")
+
+      html = render_change(view, "validate_join", %{"join_code" => "  abc  "})
+
+      assert html =~ "abc"
+    end
+
+    test "redirects when a game start is broadcast via PubSub", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/lobby")
+
+      Phoenix.PubSub.broadcast(
+        Tranca.PubSub,
+        "lobby",
+        {:game_started, "broadcast-started-game"}
+      )
+
+      assert_redirect(view, "/games/broadcast-started-game")
+    end
   end
 end
