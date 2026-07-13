@@ -225,13 +225,19 @@ defmodule TrancaWeb.GameLiveTest do
     test "shows an error when melding invalid cards", %{conn: conn} do
       conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
       setup_playing_game("invalid-meld-game", 2, ["player-1", "player-2"])
-      {:ok, game} = Games.draw_from_deck("invalid-meld-game", "player-0")
-      player = Enum.at(game.players, game.turn)
-      [card_1, card_2, card_3] = Enum.take(player.hand, 3)
+
+      invalid_cards = [
+        Card.new("invalid-1", :ace, :hearts, 20),
+        Card.new("invalid-2", :four, :diamonds, 5),
+        Card.new("invalid-3", :king, :spades, 10)
+      ]
+
+      prepare_player_hand("invalid-meld-game", "player-0", invalid_cards)
+      {:ok, _game} = Games.draw_from_deck("invalid-meld-game", "player-0")
 
       {:ok, view, _html} = live(conn, ~p"/games/invalid-meld-game")
 
-      for card <- [card_1, card_2, card_3] do
+      for card <- invalid_cards do
         view
         |> element("button[phx-value-card_id='#{card.id}']")
         |> render_click()
@@ -264,6 +270,61 @@ defmodule TrancaWeb.GameLiveTest do
 
       assert has_element?(view, "#morto-indicator", "11")
       refute has_element?(view, "#morto-indicator", "Taken")
+    end
+
+    test "picks up morto automatically when player goes out with a canastra", %{conn: conn} do
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
+      setup_playing_game("morto-pickup-game", 2, ["player-1", "player-2"])
+
+      last_card = Card.new("last-card", :four, :hearts, 5)
+
+      limpa =
+        Meld.new(
+          for {suit, i} <-
+                Enum.with_index([
+                  :hearts,
+                  :diamonds,
+                  :spades,
+                  :clubs,
+                  :hearts,
+                  :diamonds,
+                  :spades
+                ]) do
+            Card.new("limpa-#{i}", :seven, suit, 5)
+          end
+        )
+
+      {:ok, pid} = Tranca.Games.Supervisor.lookup("morto-pickup-game")
+
+      :sys.replace_state(pid, fn state ->
+        game = state.game
+
+        game =
+          game
+          |> put_in([Access.key(:teams), :a, Access.key(:melds)], [limpa])
+          |> put_in([Access.key(:teams), :a, Access.key(:first_meld_done)], true)
+          |> update_player_hand("player-0", [last_card])
+          |> Map.put(:drawn_this_turn, true)
+
+        %{state | game: game}
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/games/morto-pickup-game")
+
+      view
+      |> element("button[phx-value-card_id='#{last_card.id}']")
+      |> render_click()
+
+      view
+      |> element("#discard-selected")
+      |> render_click()
+
+      assert has_element?(view, "#morto-indicator", "Taken")
+      assert has_element?(view, "#morto-indicator", "Team A")
+
+      assert {:ok, game} = Games.get_game("morto-pickup-game")
+      assert game.morto == []
+      assert game.morto_taken_by == :a
     end
 
     test "shows morto indicator with team when taken", %{conn: conn} do
@@ -438,6 +499,21 @@ defmodule TrancaWeb.GameLiveTest do
       assert String.length(new_game_id) == 6
       assert {:ok, game} = Games.get_game(new_game_id)
       assert game.player_count == 2
+    end
+
+    test "redirects when a rematch is broadcast via PubSub", %{conn: conn} do
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-2"})
+      setup_playing_game("rematch-pubsub-game", 2, ["player-1", "player-2"])
+
+      {:ok, view, _html} = live(conn, ~p"/games/rematch-pubsub-game")
+
+      Phoenix.PubSub.broadcast(
+        Tranca.PubSub,
+        "game:rematch-pubsub-game",
+        {:rematch_created, "rematch-new"}
+      )
+
+      assert_redirect(view, "/games/rematch-new")
     end
 
     test "rejoins a player on refresh during an active game", %{conn: conn} do
