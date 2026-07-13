@@ -426,6 +426,33 @@ defmodule Tranca.Game do
     do: {:error, :game_not_playing}
 
   @doc """
+  Re-adds a player to a game in progress, restoring their seat and team.
+
+  Used when a player refreshes the page and the running game server no
+  longer holds their state. The seat must not already be occupied.
+  """
+  @spec rejoin_player(t(), String.t(), integer(), Player.team()) ::
+          {:ok, t()} | {:error, atom()}
+  def rejoin_player(%__MODULE__{status: :playing} = game, user_id, seat, team)
+      when is_integer(seat) and seat >= 0 and seat < game.player_count and
+             team in [:a, :b] do
+    if Enum.any?(game.players, &(&1.seat == seat)) do
+      {:error, :seat_taken}
+    else
+      player = Player.new("player-#{seat}", user_id, seat, team)
+      teams = Map.update!(game.teams, team, &Team.add_player(&1, player.id))
+
+      {:ok, %{game | players: game.players ++ [player], teams: teams}}
+    end
+  end
+
+  def rejoin_player(%__MODULE__{status: :playing}, _user_id, _seat, _team),
+    do: {:error, :invalid_seat_or_team}
+
+  def rejoin_player(%__MODULE__{}, _user_id, _seat, _team),
+    do: {:error, :game_not_playing}
+
+  @doc """
   Replaces a joker in one of the team's melds with a natural card from the
   player's hand.
 

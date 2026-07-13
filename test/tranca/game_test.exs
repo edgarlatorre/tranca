@@ -889,6 +889,40 @@ defmodule Tranca.GameTest do
     end
   end
 
+  describe "rejoin_player/4" do
+    test "re-adds a player to a playing game" do
+      game = started_game()
+      [player_0, player_1] = Enum.sort_by(game.players, & &1.seat)
+
+      game =
+        game
+        |> Map.put(:players, [player_0])
+        |> put_in([Access.key(:teams), :b, Access.key(:player_ids)], [])
+
+      assert {:ok, game} =
+               Game.rejoin_player(game, player_1.user_id, player_1.seat, player_1.team)
+
+      assert length(game.players) == 2
+      assert Enum.any?(game.players, &(&1.user_id == player_1.user_id))
+      assert game.teams.b.player_ids == ["player-1"]
+    end
+
+    test "rejects rejoining when the seat is taken" do
+      game = started_game()
+      [player_0 | _] = Enum.sort_by(game.players, & &1.seat)
+
+      assert {:error, :seat_taken} =
+               Game.rejoin_player(game, "new-user", player_0.seat, player_0.team)
+    end
+
+    test "rejects rejoining a waiting game" do
+      game = Game.new("game-1", 2) |> add_players([{"user-1", 0, :a}])
+
+      assert {:error, :game_not_playing} =
+               Game.rejoin_player(game, "user-2", 1, :b)
+    end
+  end
+
   describe "replace_joker/4" do
     test "replaces a joker with a matching natural card" do
       game = started_game()

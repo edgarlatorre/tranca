@@ -260,6 +260,25 @@ defmodule TrancaWeb.GameLive do
     end
   end
 
+  defp maybe_join_user(%Game{status: :playing} = game, game_id, user_id) do
+    if user_id && not seated?(game, user_id) do
+      case Games.get_player_record(game_id, user_id) do
+        {:ok, player} ->
+          team = String.to_existing_atom(player.team)
+
+          case Games.rejoin_player(game_id, user_id, player.seat, team) do
+            {:ok, game} -> game
+            {:error, _reason} -> game
+          end
+
+        {:error, _reason} ->
+          game
+      end
+    else
+      game
+    end
+  end
+
   defp maybe_join_user(%Game{} = game, _game_id, _user_id), do: game
 
   defp seated?(game, user_id) do

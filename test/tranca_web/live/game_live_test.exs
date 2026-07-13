@@ -439,6 +439,26 @@ defmodule TrancaWeb.GameLiveTest do
       assert {:ok, game} = Games.get_game(new_game_id)
       assert game.player_count == 2
     end
+
+    test "rejoins a player on refresh during an active game", %{conn: conn} do
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
+      setup_playing_game("rejoin-game", 2, ["player-1", "player-2"])
+
+      {:ok, pid} = Tranca.Games.Supervisor.lookup("rejoin-game")
+
+      :sys.replace_state(pid, fn state ->
+        [player_0] = Enum.filter(state.game.players, &(&1.user_id == "player-2"))
+        %{state | game: %{state.game | players: [player_0]}}
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/games/rejoin-game")
+
+      assert has_element?(view, "span", "You")
+
+      assert {:ok, game} = Games.get_game("rejoin-game")
+      assert length(game.players) == 2
+      assert Enum.any?(game.players, &(&1.user_id == "player-1"))
+    end
   end
 
   defp setup_waiting_game(game_id, player_count, user_ids) do
