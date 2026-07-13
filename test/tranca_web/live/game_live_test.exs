@@ -459,6 +459,17 @@ defmodule TrancaWeb.GameLiveTest do
       assert length(game.players) == 2
       assert Enum.any?(game.players, &(&1.user_id == "player-1"))
     end
+
+    test "renders responsive layout for mobile", %{conn: conn} do
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
+      setup_playing_game("responsive-game", 2, ["player-1", "player-2"])
+
+      {:ok, _view, html} = live(conn, ~p"/games/responsive-game")
+
+      assert html =~ "overflow-x-auto"
+      assert html =~ "min-h-[2.75rem]"
+      assert html =~ "w-full sm:w-auto"
+    end
   end
 
   defp setup_waiting_game(game_id, player_count, user_ids) do

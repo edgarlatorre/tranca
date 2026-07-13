@@ -26,18 +26,19 @@ defmodule TrancaWeb.GameComponents do
     <button
       type="button"
       class={[
-        "relative w-14 h-20 rounded-lg border-2 shadow-sm flex flex-col items-center justify-center",
-        "transition-transform hover:-translate-y-1 focus:outline-hidden",
+        "relative w-11 h-15 sm:w-14 sm:h-20 rounded-lg border-2 shadow-sm flex flex-col items-center justify-center",
+        "transition-transform hover:-translate-y-1 focus:outline-hidden active:scale-95",
+        "min-w-[2.75rem] min-h-[3.75rem] sm:min-w-0 sm:min-h-0",
         red_suit?(@card) && "bg-red-50 border-red-200 text-red-700",
         black_suit?(@card) && "bg-slate-50 border-slate-300 text-slate-800",
         @selected && "ring-2 ring-primary border-primary -translate-y-2"
       ]}
       {@rest}
     >
-      <span class="text-lg font-bold leading-none">{format_rank(@card.rank)}</span>
-      <span class="text-xl">{format_suit(@card.suit)}</span>
+      <span class="text-base sm:text-lg font-bold leading-none">{format_rank(@card.rank)}</span>
+      <span class="text-lg sm:text-xl">{format_suit(@card.suit)}</span>
       <%= if Card.wildcard?(@card) do %>
-        <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400" />
+        <span class="absolute top-1 right-1 w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400" />
       <% end %>
     </button>
     """
@@ -53,16 +54,18 @@ defmodule TrancaWeb.GameComponents do
 
   def game_hand(assigns) do
     ~H"""
-    <div class="flex flex-wrap justify-center gap-1">
-      <%= for card <- @cards do %>
-        <.game_card
-          card={card}
-          selected={card.id in @selected_ids}
-          phx-click={@on_select}
-          phx-value-card_id={card.id}
-          disabled={@disabled}
-        />
-      <% end %>
+    <div class="overflow-x-auto pb-2 -mx-2 px-2 sm:mx-0 sm:px-0">
+      <div class="flex justify-start sm:justify-center gap-1 min-w-min">
+        <%= for card <- @cards do %>
+          <.game_card
+            card={card}
+            selected={card.id in @selected_ids}
+            phx-click={@on_select}
+            phx-value-card_id={card.id}
+            disabled={@disabled}
+          />
+        <% end %>
+      </div>
     </div>
     """
   end
@@ -80,12 +83,12 @@ defmodule TrancaWeb.GameComponents do
 
   def game_table(assigns) do
     ~H"""
-    <div class="grid grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
       <button
         id="draw-deck"
         type="button"
         phx-click={@on_draw_deck}
-        class="card bg-base-200 shadow p-4 flex flex-col items-center justify-center gap-2 hover:bg-base-300 transition"
+        class="card bg-base-200 shadow p-4 sm:p-4 flex flex-row sm:flex-col items-center justify-between sm:justify-center gap-2 hover:bg-base-300 transition min-h-[3.5rem]"
       >
         <span class="text-sm opacity-75">Deck</span>
         <span class="text-2xl font-bold">{@deck_count}</span>
@@ -96,7 +99,7 @@ defmodule TrancaWeb.GameComponents do
         phx-click={@on_draw_discard}
         disabled={@discard_disabled}
         class={[
-          "card shadow p-4 flex flex-col items-center justify-center gap-2 transition",
+          "card shadow p-4 sm:p-4 flex flex-row sm:flex-col items-center justify-between sm:justify-center gap-2 transition min-h-[3.5rem]",
           @discard_disabled && "bg-base-300 opacity-60 cursor-not-allowed",
           not @discard_disabled && "bg-base-200 hover:bg-base-300"
         ]}
@@ -113,7 +116,7 @@ defmodule TrancaWeb.GameComponents do
 
       <div
         id="morto-indicator"
-        class="card bg-base-200 shadow p-4 flex flex-col items-center justify-center gap-2"
+        class="card bg-base-200 shadow p-4 sm:p-4 flex flex-row sm:flex-col items-center justify-between sm:justify-center gap-2 min-h-[3.5rem]"
       >
         <span class="text-sm opacity-75">Morto</span>
         <span class="text-2xl font-bold">

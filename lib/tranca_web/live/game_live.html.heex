@@ -7,8 +7,8 @@
       </div>
     <% else %>
       <header class="text-center space-y-2">
-        <h1 class="text-3xl font-bold tracking-tight">Game {@game_id}</h1>
-        <p class="text-lg opacity-75">
+        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">Game {@game_id}</h1>
+        <p class="text-base sm:text-lg opacity-75">
           <%= case @game.status do %>
             <% :waiting -> %>
               Waiting for players
@@ -99,7 +99,7 @@
               id="score-round"
               type="button"
               phx-click="score_round"
-              class="btn btn-secondary"
+              class="btn btn-secondary w-full sm:w-auto min-h-[2.75rem]"
             >
               Score Round
             </button>
@@ -145,7 +145,7 @@
                 id="continue-round"
                 type="button"
                 phx-click="continue_round"
-                class="btn btn-primary"
+                class="btn btn-primary w-full sm:w-auto min-h-[2.75rem]"
               >
                 Continue
               </button>
@@ -164,14 +164,14 @@
               disabled={@game.status == :finished}
             />
 
-            <div class="flex flex-wrap justify-center gap-2">
+            <div class="flex flex-col sm:flex-row justify-center gap-2">
               <button
                 id="meld-selected"
                 type="button"
                 phx-click="meld_selected"
                 disabled={length(@selected_card_ids) < 3 or not @can_act}
                 class={[
-                  "btn btn-primary",
+                  "btn btn-primary w-full sm:w-auto min-h-[2.75rem]",
                   (length(@selected_card_ids) < 3 or not @can_act) && "btn-disabled"
                 ]}
               >
@@ -184,7 +184,7 @@
                 phx-click="discard_selected"
                 disabled={length(@selected_card_ids) != 1 or not @can_act}
                 class={[
-                  "btn btn-secondary",
+                  "btn btn-secondary w-full sm:w-auto min-h-[2.75rem]",
                   (length(@selected_card_ids) != 1 or not @can_act) && "btn-disabled"
                 ]}
               >
@@ -241,17 +241,17 @@
             </div>
           <% end %>
 
-          <div class="flex flex-wrap justify-center gap-3">
+          <div class="flex flex-col sm:flex-row justify-center gap-3">
             <button
               id="rematch"
               type="button"
               phx-click="rematch"
-              class="btn btn-secondary"
+              class="btn btn-secondary w-full sm:w-auto min-h-[2.75rem]"
             >
               Rematch
             </button>
 
-            <.link navigate={~p"/lobby"} class="btn btn-primary">
+            <.link navigate={~p"/lobby"} class="btn btn-primary w-full sm:w-auto min-h-[2.75rem]">
               Back to Lobby
             </.link>
           </div>
