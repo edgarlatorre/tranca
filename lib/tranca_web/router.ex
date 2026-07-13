@@ -1,4 +1,8 @@
 defmodule TrancaWeb.Router do
+  @moduledoc """
+  HTTP router for the Tranca web application.
+  """
+
   use TrancaWeb, :router
 
   pipeline :browser do

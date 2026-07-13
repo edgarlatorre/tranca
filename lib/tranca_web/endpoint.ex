@@ -1,4 +1,8 @@
 defmodule TrancaWeb.Endpoint do
+  @moduledoc """
+  HTTP endpoint for the Tranca web application.
+  """
+
   use Phoenix.Endpoint, otp_app: :tranca
 
   # The session will be stored in the cookie and signed,

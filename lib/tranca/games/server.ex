@@ -22,6 +22,7 @@ defmodule Tranca.Games.Server do
   @doc """
   Returns the child spec for this GenServer.
   """
+  @spec child_spec(keyword()) :: Supervisor.child_spec()
   def child_spec(opts) do
     %{
       id: {__MODULE__, Keyword.fetch!(opts, :game_id)},
