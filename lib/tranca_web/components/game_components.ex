@@ -206,9 +206,8 @@ defmodule TrancaWeb.GameComponents do
   defp red_suit?(%Card{suit: :diamonds}), do: true
   defp red_suit?(%Card{}), do: false
 
-  defp black_suit?(%Card{suit: :spades}), do: true
-  defp black_suit?(%Card{suit: :clubs}), do: true
-  defp black_suit?(%Card{}), do: true
+  # Spades, clubs and jokers (nil suit) use the dark card style.
+  defp black_suit?(%Card{} = card), do: not red_suit?(card)
 
   defp format_rank(:ace), do: "A"
   defp format_rank(:two), do: "2"

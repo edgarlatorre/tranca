@@ -409,8 +409,11 @@ defmodule Tranca.GameTest do
     test "rejects invalid winners" do
       game = started_game()
 
+      # Built at runtime so the type checker doesn't reject the invalid value at compile time
+      invalid_winner = Enum.random([:c])
+
       assert_raise FunctionClauseError, fn ->
-        Game.finish(game, :c)
+        Game.finish(game, invalid_winner)
       end
     end
   end
