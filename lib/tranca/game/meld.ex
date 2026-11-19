@@ -2,12 +2,21 @@ defmodule Tranca.Game.Meld do
   @moduledoc """
   Represents a meld (lay down) of cards in Tranca.
 
-  A meld consists of three or more cards of the same rank. Wildcards
-  (twos and jokers) can substitute for any rank, but a valid meld must
-  contain at least one natural card.
+  A meld consists of three or more cards forming either:
+
+    * a **set** — natural cards that all share the same rank (K K K), or
+    * a **sequence** — natural cards of the same suit with distinct ranks
+      that form a run (4♥ 5♥ 6♥). Aces can be low (A 2 3) or high (Q K A).
+
+  Wildcards (twos and jokers) can stand in for any card: in a set they
+  count as the set's rank, and in a sequence they fill gaps (4♥ 2♣ 6♥) or
+  extend either end. A valid meld must contain at least one natural card,
+  and wildcards may not outnumber natural cards.
   """
 
   alias Tranca.Game.Card
+
+  @type kind :: :set | :sequence
 
   @type t :: %__MODULE__{
           cards: [Card.t()],
@@ -21,42 +30,55 @@ defmodule Tranca.Game.Meld do
   """
   @spec new([Card.t()]) :: t()
   def new(cards) when is_list(cards) do
-    %__MODULE__{cards: cards, type: classify(cards)}
+    %__MODULE__{cards: arrange(cards), type: classify(cards)}
   end
 
   @doc """
   Returns true if the meld is valid.
 
-  A meld is valid when it has at least three cards, contains at least
-  one natural (non-wildcard) card, all natural cards share the same rank,
-  and the number of wildcards does not exceed the number of natural cards.
+  A meld is valid when it has at least three cards, its cards form a set
+  or a sequence (see `kind/1`), and the number of wildcards does not
+  exceed the number of natural cards.
   """
   @spec valid?(t()) :: boolean()
-  def valid?(%__MODULE__{cards: cards}) do
-    naturals = Enum.reject(cards, &Card.wildcard?/1)
-    wildcards = Enum.filter(cards, &Card.wildcard?/1)
+  def valid?(%__MODULE__{cards: cards} = meld) do
+    {naturals, wildcards} = Enum.split_with(cards, &(not Card.wildcard?(&1)))
 
-    case {cards, naturals} do
-      {[_a, _b, _c | _rest], [first | rest]} ->
-        length(wildcards) <= length(naturals) and
-          Enum.all?(rest, &(&1.rank == first.rank))
+    length(cards) >= 3 and length(wildcards) <= length(naturals) and
+      kind(meld) != nil
+  end
 
-      _ ->
-        false
+  @doc """
+  Returns the kind of meld the cards form, ignoring size and wildcard limits.
+
+  Returns `:set` when all natural cards share the same rank, `:sequence`
+  when the natural cards share a suit and, with the wildcards filling gaps,
+  form a run of consecutive ranks, and `nil` otherwise (including when the
+  meld has no natural cards).
+  """
+  @spec kind(t() | [Card.t()]) :: kind() | nil
+  def kind(%__MODULE__{cards: cards}), do: kind(cards)
+
+  def kind(cards) when is_list(cards) do
+    {naturals, wildcards} = Enum.split_with(cards, &(not Card.wildcard?(&1)))
+
+    cond do
+      naturals == [] -> nil
+      same_rank?(naturals) -> :set
+      sequence_layout(naturals, length(wildcards)) != nil -> :sequence
+      true -> nil
     end
   end
 
   @doc """
-  Returns the rank of the meld, determined by its natural cards.
-  Returns nil for invalid melds or melds with only wildcards.
+  Returns the rank of a set, determined by its natural cards.
+  Returns nil for sequences and melds with only wildcards.
   """
   @spec rank(t()) :: Card.rank() | nil
-  def rank(%__MODULE__{cards: cards}) do
-    naturals = Enum.reject(cards, &Card.wildcard?/1)
-
-    case naturals do
-      [first | _] -> first.rank
-      [] -> nil
+  def rank(%__MODULE__{cards: cards} = meld) do
+    case {kind(meld), Enum.reject(cards, &Card.wildcard?/1)} do
+      {:set, [first | _]} -> first.rank
+      _ -> nil
     end
   end
 
@@ -98,23 +120,85 @@ defmodule Tranca.Game.Meld do
   @spec canastra?(t()) :: boolean()
   def canastra?(%__MODULE__{type: type}), do: type in [:limpa, :suja]
 
+  # A meld of seven or more cards that forms a set or a sequence is a
+  # canastra: limpa without wildcards, suja with them.
   defp classify(cards) do
-    naturals = Enum.reject(cards, &Card.wildcard?/1)
-
-    case {cards, naturals} do
-      {[_a, _b, _c, _d, _e, _f, _g | _rest], [first | rest]} ->
-        if Enum.all?(rest, &(&1.rank == first.rank)) do
-          if Enum.any?(cards, &Card.wildcard?/1) do
-            :suja
-          else
-            :limpa
-          end
-        else
-          :normal
-        end
-
-      _ ->
-        :normal
+    cond do
+      length(cards) < 7 or kind(cards) == nil -> :normal
+      Enum.any?(cards, &Card.wildcard?/1) -> :suja
+      true -> :limpa
     end
+  end
+
+  defp same_rank?([first | rest]), do: Enum.all?(rest, &(&1.rank == first.rank))
+
+  # Sequence positions: ace low (1) or high (14), three through king 3..13.
+  # Twos are always wildcards, so they never appear as naturals here.
+  @positions %{
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+    jack: 11,
+    queen: 12,
+    king: 13
+  }
+
+  # A run covers at most 13 positions (A..K or 2..A).
+  @max_sequence_length 13
+
+  # Returns the natural cards sorted by position (as `{position, card}`
+  # pairs) if they can form a sequence with `wildcard_count` wildcards,
+  # or nil otherwise. Tries ace-low first, then ace-high.
+  defp sequence_layout([first | _] = naturals, wildcard_count) do
+    same_suit? = first.suit != nil and Enum.all?(naturals, &(&1.suit == first.suit))
+    fits? = length(naturals) + wildcard_count <= @max_sequence_length
+
+    if same_suit? and fits? do
+      Enum.find_value([1, 14], fn ace_position ->
+        layout =
+          naturals
+          |> Enum.map(&{position(&1, ace_position), &1})
+          |> Enum.sort_by(&elem(&1, 0))
+
+        positions = Enum.map(layout, &elem(&1, 0))
+        gaps = List.last(positions) - hd(positions) + 1 - length(positions)
+
+        if positions == Enum.uniq(positions) and gaps <= wildcard_count, do: layout
+      end)
+    end
+  end
+
+  defp position(%Card{rank: :ace}, ace_position), do: ace_position
+  defp position(%Card{rank: rank}, _ace_position), do: Map.fetch!(@positions, rank)
+
+  # Orders a sequence by rank with wildcards placed in the gaps they fill;
+  # leftover wildcards extend the top of the run (or the bottom once the
+  # top reaches the ace). Sets and invalid melds keep their given order.
+  defp arrange(cards) do
+    {naturals, wildcards} = Enum.split_with(cards, &(not Card.wildcard?(&1)))
+
+    with false <- naturals == [] or same_rank?(naturals),
+         layout when is_list(layout) <- sequence_layout(naturals, length(wildcards)) do
+      {run, wildcards} = fill_gaps(layout, wildcards)
+      top = layout |> List.last() |> elem(0)
+      room_above = min(14 - top, length(wildcards))
+      {above, below} = Enum.split(wildcards, room_above)
+      below ++ run ++ above
+    else
+      _ -> cards
+    end
+  end
+
+  defp fill_gaps([{_position, card}], wildcards), do: {[card], wildcards}
+
+  defp fill_gaps([{position, card}, {next, _} | _] = [_ | rest], wildcards) do
+    {fillers, wildcards} = Enum.split(wildcards, next - position - 1)
+    {run, wildcards} = fill_gaps(rest, wildcards)
+    {[card | fillers] ++ run, wildcards}
   end
 end

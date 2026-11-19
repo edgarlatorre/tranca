@@ -786,9 +786,54 @@ defmodule Tranca.GameTest do
 
       assert {:error, :not_your_turn} = Game.meld(game, other_player.id, ["x", "y", "z"])
     end
+
+    test "lays down a sequence using a 2 as a wildcard" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      # 4♥ 6♥ with a 2♣ standing in for the 5♥.
+      meld_cards = [
+        Card.new("seq-4", :four, :hearts, 5),
+        Card.new("seq-6", :six, :hearts, 5),
+        Card.new("seq-2", :two, :clubs, 20)
+      ]
+
+      game = update_player_hand_cards(game, current_player.id, meld_cards ++ current_player.hand)
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:ok, game} = Game.meld(game, current_player.id, Enum.map(meld_cards, & &1.id))
+
+      assert [meld] = game.teams.a.melds
+      assert Enum.map(meld.cards, & &1.id) == ["seq-4", "seq-2", "seq-6"]
+    end
   end
 
   describe "add_to_meld/4" do
+    test "adds a card to the end of a sequence" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      meld =
+        Meld.new([
+          Card.new("seq-4", :four, :hearts, 5),
+          Card.new("seq-5", :five, :hearts, 5),
+          Card.new("seq-6", :six, :hearts, 5)
+        ])
+
+      extra = Card.new("seq-7", :seven, :hearts, 5)
+
+      game =
+        game
+        |> put_in([Access.key(:teams), :a, Access.key(:melds)], [meld])
+        |> put_in([Access.key(:teams), :a, Access.key(:first_meld_done)], true)
+        |> update_player_hand_cards(current_player.id, [extra | current_player.hand])
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:ok, game} = Game.add_to_meld(game, current_player.id, 0, extra.id)
+      assert [%Meld{cards: [_, _, _, %Card{id: "seq-7"}]}] = game.teams.a.melds
+    end
+
     test "adds a matching card to an existing meld" do
       game = started_game()
       current_player = Enum.at(game.players, game.turn)
@@ -934,6 +979,32 @@ defmodule Tranca.GameTest do
 
       current_player = Enum.find(game.players, &(&1.id == current_player.id))
       assert Enum.any?(current_player.hand, &(&1.id == "joker"))
+    end
+
+    test "replaces a 2 filling a gap in a sequence with the missing card" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      wildcard = Card.new("seq-2", :two, :clubs, 20)
+      natural = Card.new("seq-5", :five, :hearts, 5)
+
+      meld =
+        Meld.new([
+          Card.new("seq-4", :four, :hearts, 5),
+          Card.new("seq-6", :six, :hearts, 5),
+          wildcard
+        ])
+
+      game = put_in(game.teams.a.melds, [meld])
+      game = update_player_hand_cards(game, current_player.id, [natural | current_player.hand])
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:ok, game} = Game.replace_joker(game, current_player.id, 0, natural.id)
+      assert [%Meld{cards: cards}] = game.teams.a.melds
+      assert Enum.map(cards, & &1.id) == ["seq-4", "seq-5", "seq-6"]
+
+      current_player = Enum.find(game.players, &(&1.id == current_player.id))
+      assert Enum.any?(current_player.hand, &(&1.id == wildcard.id))
     end
 
     test "rejects replacing when the meld has no joker" do
