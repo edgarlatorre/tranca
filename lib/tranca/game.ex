@@ -372,8 +372,7 @@ defmodule Tranca.Game do
     with :ok <- validate_turn(game, player_id),
          :ok <- validate_drawn(game),
          {:ok, cards, hand} <- remove_cards_from_hand(game, player_id, card_ids),
-         true <- Meld.valid?(Meld.new(cards)),
-         :ok <- validate_first_meld(game, cards) do
+         true <- Meld.valid?(Meld.new(cards)) do
       meld = Meld.new(cards)
       current_player = Enum.at(game.players, game.turn)
 
@@ -537,17 +536,6 @@ defmodule Tranca.Game do
 
   defp validate_drawn(%__MODULE__{drawn_this_turn: true}), do: :ok
   defp validate_drawn(%__MODULE__{}), do: {:error, :must_draw_first}
-
-  defp validate_first_meld(game, cards) do
-    current_player = Enum.at(game.players, game.turn)
-    team = game.teams[current_player.team]
-
-    if team.first_meld_done or Meld.new(cards) |> Meld.points() >= 75 do
-      :ok
-    else
-      {:error, :first_meld_minimum_not_met}
-    end
-  end
 
   defp black_three_penalty(game, team_id) do
     game.players

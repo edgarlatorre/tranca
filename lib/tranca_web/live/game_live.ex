@@ -322,9 +322,6 @@ defmodule TrancaWeb.GameLive do
   defp format_error(:card_not_in_hand), do: "Selected card is not in your hand."
   defp format_error(:invalid_meld), do: "Invalid meld."
 
-  defp format_error(:first_meld_minimum_not_met),
-    do: "First meld must be worth at least 75 points."
-
   defp format_error(:discard_blocked_by_black_three),
     do: "Discard pile is blocked by a black three."
 
