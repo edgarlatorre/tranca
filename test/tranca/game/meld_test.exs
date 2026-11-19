@@ -193,4 +193,97 @@ defmodule Tranca.Game.MeldTest do
       refute Meld.valid?(meld)
     end
   end
+
+  describe "sequences" do
+    defp c(id, rank, suit), do: Card.new(id, rank, suit, 5)
+
+    test "accepts a same-suit run of natural cards" do
+      meld = Meld.new([c("1", :four, :hearts), c("2", :five, :hearts), c("3", :six, :hearts)])
+
+      assert Meld.valid?(meld)
+      assert Meld.kind(meld) == :sequence
+      assert Meld.rank(meld) == nil
+    end
+
+    test "accepts a 2 filling a gap in a sequence" do
+      meld = Meld.new([c("4", :four, :hearts), c("6", :six, :hearts), c("w", :two, :clubs)])
+
+      assert Meld.valid?(meld)
+      assert Enum.map(meld.cards, & &1.id) == ["4", "w", "6"]
+    end
+
+    test "accepts a joker filling a gap in a sequence" do
+      meld = Meld.new([c("w", :joker, nil), c("4", :four, :hearts), c("6", :six, :hearts)])
+
+      assert Meld.valid?(meld)
+      assert Enum.map(meld.cards, & &1.id) == ["4", "w", "6"]
+    end
+
+    test "accepts a wildcard extending the end of a sequence" do
+      meld = Meld.new([c("w", :two, :clubs), c("5", :five, :spades), c("6", :six, :spades)])
+
+      assert Meld.valid?(meld)
+      assert Enum.map(meld.cards, & &1.id) == ["5", "6", "w"]
+    end
+
+    test "extends below when the run already ends at the ace" do
+      meld = Meld.new([c("w", :two, :clubs), c("k", :king, :spades), c("a", :ace, :spades)])
+
+      assert Meld.valid?(meld)
+      assert Enum.map(meld.cards, & &1.id) == ["w", "k", "a"]
+    end
+
+    test "accepts the ace low or high" do
+      assert Meld.valid?(
+               Meld.new([c("a", :ace, :clubs), c("w", :two, :clubs), c("3", :three, :clubs)])
+             )
+
+      assert Meld.valid?(
+               Meld.new([c("q", :queen, :clubs), c("k", :king, :clubs), c("a", :ace, :clubs)])
+             )
+    end
+
+    test "rejects a run that wraps around the ace" do
+      refute Meld.valid?(
+               Meld.new([c("k", :king, :clubs), c("a", :ace, :clubs), c("3", :three, :clubs)])
+             )
+    end
+
+    test "rejects mixed suits" do
+      refute Meld.valid?(
+               Meld.new([c("4", :four, :hearts), c("5", :five, :spades), c("6", :six, :hearts)])
+             )
+    end
+
+    test "rejects gaps larger than the available wildcards" do
+      refute Meld.valid?(
+               Meld.new([c("4", :four, :hearts), c("7", :seven, :hearts), c("w", :two, :clubs)])
+             )
+    end
+
+    test "rejects duplicate ranks" do
+      refute Meld.valid?(
+               Meld.new([c("1", :four, :hearts), c("2", :four, :hearts), c("5", :five, :hearts)])
+             )
+    end
+
+    test "rejects more wildcards than natural cards" do
+      refute Meld.valid?(
+               Meld.new([c("4", :four, :hearts), c("w1", :two, :clubs), c("w2", :joker, nil)])
+             )
+    end
+
+    test "classifies seven-card sequences as canastras" do
+      naturals =
+        for {rank, i} <- Enum.with_index([:four, :five, :six, :seven, :eight, :nine, :ten]) do
+          c("n#{i}", rank, :diamonds)
+        end
+
+      assert Meld.new(naturals).type == :limpa
+
+      suja = naturals |> List.replace_at(3, c("w", :two, :clubs)) |> Meld.new()
+      assert Meld.valid?(suja)
+      assert suja.type == :suja
+    end
+  end
 end

@@ -455,8 +455,9 @@ defmodule Tranca.Game do
   Replaces a joker in one of the team's melds with a natural card from the
   player's hand.
 
-  The natural card must match the rank of the meld, and the meld must contain
-  at least one joker. The joker is returned to the player's hand.
+  The meld must contain at least one wildcard, and the natural card must fit
+  in its place: match the rank of a set, or the suit and a missing position
+  of a sequence. The replaced wildcard is returned to the player's hand.
   """
   @spec replace_joker(t(), String.t(), integer(), String.t()) :: {:ok, t()} | {:error, atom()}
   def replace_joker(%__MODULE__{status: :playing} = game, player_id, meld_index, card_id) do
@@ -493,17 +494,14 @@ defmodule Tranca.Game do
         {:error, :no_joker_in_meld}
 
       {jokers, naturals} ->
-        with [first_natural | _] <- naturals,
-             player = Enum.find(game.players, &(&1.id == player_id)),
-             natural_card = Enum.find(player.hand, &(&1.id == card_id)),
-             true <- not is_nil(natural_card),
-             true <- natural_card.rank == first_natural.rank do
-          [joker | rest_jokers] = jokers
+        player = Enum.find(game.players, &(&1.id == player_id))
+        [joker | rest_jokers] = jokers
 
-          updated_cards =
-            (naturals ++ rest_jokers)
-            |> List.insert_at(0, natural_card)
-
+        with [_ | _] <- naturals,
+             %Card{} = natural_card <- Enum.find(player.hand, &(&1.id == card_id)),
+             false <- Card.wildcard?(natural_card),
+             updated_cards = [natural_card | naturals] ++ rest_jokers,
+             kind when not is_nil(kind) <- Meld.kind(updated_cards) do
           {:ok, joker, natural_card, Meld.new(updated_cards)}
         else
           _ -> {:error, :invalid_replacement_card}
