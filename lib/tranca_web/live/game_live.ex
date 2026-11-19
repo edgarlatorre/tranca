@@ -322,6 +322,9 @@ defmodule TrancaWeb.GameLive do
   defp format_error(:card_not_in_hand), do: "Selected card is not in your hand."
   defp format_error(:invalid_meld), do: "Invalid meld."
 
+  defp format_error(:same_rank_meld_not_allowed),
+    do: "Melds of the same rank are only allowed for aces and 4s. Use a same-suit sequence."
+
   defp format_error(:discard_blocked_by_black_three),
     do: "Discard pile is blocked by a black three."
 

@@ -158,12 +158,12 @@ defmodule TrancaWeb.GameLiveTest do
 
       base_meld =
         Meld.new([
-          Card.new("seven-1", :seven, :hearts, 5),
-          Card.new("seven-2", :seven, :diamonds, 5),
-          Card.new("seven-3", :seven, :spades, 5)
+          Card.new("four-1", :four, :hearts, 5),
+          Card.new("four-2", :four, :diamonds, 5),
+          Card.new("four-3", :four, :spades, 5)
         ])
 
-      extra = Card.new("seven-4", :seven, :clubs, 5)
+      extra = Card.new("four-4", :four, :clubs, 5)
 
       {:ok, pid} = Tranca.Games.Supervisor.lookup("add-game")
 
@@ -251,6 +251,35 @@ defmodule TrancaWeb.GameLiveTest do
       assert html =~ "Invalid meld"
     end
 
+    test "explains that same-rank melds are only for aces and 4s", %{conn: conn} do
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
+      setup_playing_game("king-set-game", 2, ["player-1", "player-2"])
+
+      kings = [
+        Card.new("king-1", :king, :hearts, 10),
+        Card.new("king-2", :king, :diamonds, 10),
+        Card.new("king-3", :king, :spades, 10)
+      ]
+
+      prepare_player_hand("king-set-game", "player-0", kings)
+      {:ok, _game} = Games.draw_from_deck("king-set-game", "player-0")
+
+      {:ok, view, _html} = live(conn, ~p"/games/king-set-game")
+
+      for card <- kings do
+        view
+        |> element("button[phx-value-card_id='#{card.id}']")
+        |> render_click()
+      end
+
+      html =
+        view
+        |> element("#meld-selected")
+        |> render_click()
+
+      assert html =~ "only allowed for aces and 4s"
+    end
+
     test "disables action buttons for the non-current player", %{conn: conn} do
       conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-2"})
       setup_playing_game("waiting-turn-game", 2, ["player-1", "player-2"])
@@ -290,7 +319,7 @@ defmodule TrancaWeb.GameLiveTest do
                   :diamonds,
                   :spades
                 ]) do
-            Card.new("limpa-#{i}", :seven, suit, 5)
+            Card.new("limpa-#{i}", :four, suit, 5)
           end
         )
 
@@ -348,12 +377,12 @@ defmodule TrancaWeb.GameLiveTest do
       setup_playing_game("replace-joker-game", 2, ["player-1", "player-2"])
 
       joker = Card.new("joker", :joker, nil, 50)
-      natural = Card.new("natural", :seven, :hearts, 5)
+      natural = Card.new("natural", :four, :hearts, 5)
 
       meld =
         Meld.new([
-          Card.new("seven-1", :seven, :diamonds, 5),
-          Card.new("seven-2", :seven, :spades, 5),
+          Card.new("four-1", :four, :diamonds, 5),
+          Card.new("four-2", :four, :spades, 5),
           joker
         ])
 
@@ -426,7 +455,7 @@ defmodule TrancaWeb.GameLiveTest do
                     :diamonds,
                     :spades
                   ]) do
-              Card.new("limpa-#{i}", :seven, suit, 5)
+              Card.new("limpa-#{i}", :four, suit, 5)
             end
           )
 

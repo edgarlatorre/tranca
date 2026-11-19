@@ -174,13 +174,13 @@ defmodule Tranca.GamesTest do
       {:ok, game} = Games.start(game_id, 42)
 
       current_player = Enum.at(game.players, game.turn)
-      natural = Card.new("natural", :seven, :hearts, 5)
+      natural = Card.new("natural", :four, :hearts, 5)
       joker = Card.new("joker", :joker, nil, 50)
 
       meld =
         Meld.new([
-          Card.new("seven-1", :seven, :diamonds, 5),
-          Card.new("seven-2", :seven, :spades, 5),
+          Card.new("four-1", :four, :diamonds, 5),
+          Card.new("four-2", :four, :spades, 5),
           joker
         ])
 

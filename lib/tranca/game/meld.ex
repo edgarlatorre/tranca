@@ -4,7 +4,8 @@ defmodule Tranca.Game.Meld do
 
   A meld consists of three or more cards forming either:
 
-    * a **set** — natural cards that all share the same rank (K K K), or
+    * a **set** — natural cards that all share the same rank. Sets are
+      only allowed for aces and 4s (A A A, 4 4 4), or
     * a **sequence** — natural cards of the same suit with distinct ranks
       that form a run (4♥ 5♥ 6♥). Aces can be low (A 2 3) or high (Q K A).
 
@@ -17,6 +18,9 @@ defmodule Tranca.Game.Meld do
   alias Tranca.Game.Card
 
   @type kind :: :set | :sequence
+
+  # The only ranks that may form a set.
+  @set_ranks [:ace, :four]
 
   @type t :: %__MODULE__{
           cards: [Card.t()],
@@ -41,17 +45,32 @@ defmodule Tranca.Game.Meld do
   exceed the number of natural cards.
   """
   @spec valid?(t()) :: boolean()
-  def valid?(%__MODULE__{cards: cards} = meld) do
-    {naturals, wildcards} = Enum.split_with(cards, &(not Card.wildcard?(&1)))
+  def valid?(%__MODULE__{} = meld), do: validate(meld) == :ok
 
-    length(cards) >= 3 and length(wildcards) <= length(naturals) and
-      kind(meld) != nil
+  @doc """
+  Validates the meld, returning `:ok` or an error explaining why it is not
+  valid.
+
+  Returns `{:error, :same_rank_meld_not_allowed}` for a set of a rank other
+  than aces or 4s that would otherwise be valid (for example K K K), and
+  `{:error, :invalid_meld}` for any other invalid meld.
+  """
+  @spec validate(t()) :: :ok | {:error, :invalid_meld | :same_rank_meld_not_allowed}
+  def validate(%__MODULE__{cards: cards} = meld) do
+    {naturals, wildcards} = Enum.split_with(cards, &(not Card.wildcard?(&1)))
+    sized? = length(cards) >= 3 and length(wildcards) <= length(naturals)
+
+    cond do
+      sized? and kind(meld) != nil -> :ok
+      sized? and same_rank?(naturals) -> {:error, :same_rank_meld_not_allowed}
+      true -> {:error, :invalid_meld}
+    end
   end
 
   @doc """
   Returns the kind of meld the cards form, ignoring size and wildcard limits.
 
-  Returns `:set` when all natural cards share the same rank, `:sequence`
+  Returns `:set` when all natural cards are aces or all are 4s, `:sequence`
   when the natural cards share a suit and, with the wildcards filling gaps,
   form a run of consecutive ranks, and `nil` otherwise (including when the
   meld has no natural cards).
@@ -64,7 +83,7 @@ defmodule Tranca.Game.Meld do
 
     cond do
       naturals == [] -> nil
-      same_rank?(naturals) -> :set
+      same_rank?(naturals) -> if hd(naturals).rank in @set_ranks, do: :set
       sequence_layout(naturals, length(wildcards)) != nil -> :sequence
       true -> nil
     end
@@ -130,6 +149,7 @@ defmodule Tranca.Game.Meld do
     end
   end
 
+  defp same_rank?([]), do: false
   defp same_rank?([first | rest]), do: Enum.all?(rest, &(&1.rank == first.rank))
 
   # Sequence positions: ace low (1) or high (14), three through king 3..13.
