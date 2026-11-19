@@ -305,7 +305,7 @@ defmodule Tranca.GameTest do
                   :diamonds,
                   :spades
                 ]) do
-            Card.new("canastra-#{i}", :seven, suit, 5)
+            Card.new("canastra-#{i}", :four, suit, 5)
           end
         )
 
@@ -370,7 +370,7 @@ defmodule Tranca.GameTest do
                   :diamonds,
                   :spades
                 ]) do
-            Card.new("canastra-#{i}", :seven, suit, 5)
+            Card.new("canastra-#{i}", :four, suit, 5)
           end
         )
 
@@ -519,7 +519,7 @@ defmodule Tranca.GameTest do
         update_player_hand_cards(game, player_0.id, [
           Card.new("r3", :three, :hearts, 5),
           Card.new("b3", :three, :spades, 5),
-          Card.new("seven", :seven, :hearts, 5)
+          Card.new("seven", :four, :hearts, 5)
         ])
 
       game = Game.apply_black_three_penalties(game)
@@ -545,15 +545,15 @@ defmodule Tranca.GameTest do
                   :diamonds,
                   :spades
                 ]) do
-            Card.new("limpa-#{i}", :seven, suit, 5)
+            Card.new("limpa-#{i}", :four, suit, 5)
           end
         )
 
       red_three_meld =
         Meld.new([
           Card.new("r3", :three, :hearts, 5),
-          Card.new("seven-1", :seven, :hearts, 5),
-          Card.new("seven-2", :seven, :diamonds, 5)
+          Card.new("four-1", :four, :hearts, 5),
+          Card.new("four-2", :four, :diamonds, 5)
         ])
 
       game =
@@ -595,7 +595,7 @@ defmodule Tranca.GameTest do
                   :diamonds,
                   :spades
                 ]) do
-            Card.new("limpa-#{i}", :seven, suit, 5)
+            Card.new("limpa-#{i}", :four, suit, 5)
           end
         )
 
@@ -605,15 +605,15 @@ defmodule Tranca.GameTest do
           | for(
               {suit, i} <-
                 Enum.with_index([:hearts, :diamonds, :spades, :clubs, :hearts, :diamonds]),
-              do: Card.new("suja-#{i}", :nine, suit, 5)
+              do: Card.new("suja-#{i}", :ace, suit, 5)
             )
         ])
 
       red_three_meld =
         Meld.new([
           Card.new("r3", :three, :hearts, 5),
-          Card.new("seven-1", :seven, :hearts, 5),
-          Card.new("seven-2", :seven, :diamonds, 5)
+          Card.new("four-1", :four, :hearts, 5),
+          Card.new("four-2", :four, :diamonds, 5)
         ])
 
       game =
@@ -649,7 +649,7 @@ defmodule Tranca.GameTest do
                   :diamonds,
                   :spades
                 ]) do
-            Card.new("limpa-#{i}", :seven, suit, 5)
+            Card.new("limpa-#{i}", :four, suit, 5)
           end
         )
 
@@ -699,8 +699,8 @@ defmodule Tranca.GameTest do
       meld =
         Meld.new([
           Card.new("b3", :three, :spades, 5),
-          Card.new("seven", :seven, :hearts, 5),
-          Card.new("seven2", :seven, :diamonds, 5)
+          Card.new("seven", :four, :hearts, 5),
+          Card.new("seven2", :four, :diamonds, 5)
         ])
 
       game = put_in(game.teams.a.melds, [meld])
@@ -744,9 +744,9 @@ defmodule Tranca.GameTest do
 
       # Three sevens are worth only 15 points.
       matching_cards = [
-        Card.new("meld-1", :seven, :hearts, 5),
-        Card.new("meld-2", :seven, :diamonds, 5),
-        Card.new("meld-3", :seven, :spades, 5)
+        Card.new("meld-1", :four, :hearts, 5),
+        Card.new("meld-2", :four, :diamonds, 5),
+        Card.new("meld-3", :four, :spades, 5)
       ]
 
       game = update_player_hand_cards(game, current_player.id, matching_cards ++ [card_3 | rest])
@@ -769,6 +769,42 @@ defmodule Tranca.GameTest do
 
       assert {:error, :invalid_meld} =
                Game.meld(game, current_player.id, [card_1.id, card_2.id, card_3.id])
+    end
+
+    test "rejects a same-rank meld of a rank other than aces or 4s" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      kings = [
+        Card.new("king-1", :king, :hearts, 10),
+        Card.new("king-2", :king, :diamonds, 10),
+        Card.new("king-3", :king, :spades, 10)
+      ]
+
+      game = update_player_hand_cards(game, current_player.id, kings ++ current_player.hand)
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:error, :same_rank_meld_not_allowed} =
+               Game.meld(game, current_player.id, Enum.map(kings, & &1.id))
+
+      assert game.teams.a.melds == []
+    end
+
+    test "lays down a set of aces with a 2 as a wildcard" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      cards = [
+        Card.new("ace-1", :ace, :hearts, 15),
+        Card.new("ace-2", :ace, :diamonds, 15),
+        Card.new("two-1", :two, :clubs, 20)
+      ]
+
+      game = update_player_hand_cards(game, current_player.id, cards ++ current_player.hand)
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:ok, game} = Game.meld(game, current_player.id, Enum.map(cards, & &1.id))
+      assert [_meld] = game.teams.a.melds
     end
 
     test "rejects melding before drawing" do
@@ -840,12 +876,12 @@ defmodule Tranca.GameTest do
 
       meld =
         Meld.new([
-          Card.new("seven-1", :seven, :hearts, 5),
-          Card.new("seven-2", :seven, :diamonds, 5),
-          Card.new("seven-3", :seven, :spades, 5)
+          Card.new("four-1", :four, :hearts, 5),
+          Card.new("four-2", :four, :diamonds, 5),
+          Card.new("four-3", :four, :spades, 5)
         ])
 
-      extra = Card.new("seven-4", :seven, :clubs, 5)
+      extra = Card.new("four-4", :four, :clubs, 5)
 
       game =
         game
@@ -862,15 +898,41 @@ defmodule Tranca.GameTest do
       refute Enum.any?(current_player.hand, &(&1.id == extra.id))
     end
 
+    test "rejects growing a same-rank meld of a rank other than aces or 4s" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      # A king set laid down before the aces-and-4s rule existed.
+      meld =
+        Meld.new([
+          Card.new("king-1", :king, :hearts, 10),
+          Card.new("king-2", :king, :diamonds, 10),
+          Card.new("king-3", :king, :spades, 10)
+        ])
+
+      extra = Card.new("king-4", :king, :clubs, 10)
+
+      game =
+        game
+        |> put_in([Access.key(:teams), :a, Access.key(:melds)], [meld])
+        |> put_in([Access.key(:teams), :a, Access.key(:first_meld_done)], true)
+        |> update_player_hand_cards(current_player.id, [extra | current_player.hand])
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:error, :same_rank_meld_not_allowed} =
+               Game.add_to_meld(game, current_player.id, 0, extra.id)
+    end
+
     test "rejects adding a card of a different rank" do
       game = started_game()
       current_player = Enum.at(game.players, game.turn)
 
       meld =
         Meld.new([
-          Card.new("seven-1", :seven, :hearts, 5),
-          Card.new("seven-2", :seven, :diamonds, 5),
-          Card.new("seven-3", :seven, :spades, 5)
+          Card.new("four-1", :four, :hearts, 5),
+          Card.new("four-2", :four, :diamonds, 5),
+          Card.new("four-3", :four, :spades, 5)
         ])
 
       wrong = Card.new("eight", :eight, :clubs, 5)
@@ -892,12 +954,12 @@ defmodule Tranca.GameTest do
 
       meld =
         Meld.new([
-          Card.new("seven-1", :seven, :hearts, 5),
-          Card.new("seven-2", :seven, :diamonds, 5),
-          Card.new("seven-3", :seven, :spades, 5)
+          Card.new("four-1", :four, :hearts, 5),
+          Card.new("four-2", :four, :diamonds, 5),
+          Card.new("four-3", :four, :spades, 5)
         ])
 
-      extra = Card.new("seven-4", :seven, :clubs, 5)
+      extra = Card.new("four-4", :four, :clubs, 5)
 
       game =
         game
@@ -958,12 +1020,12 @@ defmodule Tranca.GameTest do
       current_player = Enum.at(game.players, game.turn)
 
       joker = Card.new("joker", :joker, nil, 50)
-      natural = Card.new("natural", :seven, :hearts, 5)
+      natural = Card.new("natural", :four, :hearts, 5)
 
       meld =
         Meld.new([
-          Card.new("seven-1", :seven, :diamonds, 5),
-          Card.new("seven-2", :seven, :spades, 5),
+          Card.new("four-1", :four, :diamonds, 5),
+          Card.new("four-2", :four, :spades, 5),
           joker
         ])
 
@@ -1011,13 +1073,13 @@ defmodule Tranca.GameTest do
       game = started_game()
       current_player = Enum.at(game.players, game.turn)
 
-      natural = Card.new("natural", :seven, :hearts, 5)
+      natural = Card.new("natural", :four, :hearts, 5)
 
       meld =
         Meld.new([
-          Card.new("seven-1", :seven, :diamonds, 5),
-          Card.new("seven-2", :seven, :spades, 5),
-          Card.new("seven-3", :seven, :clubs, 5)
+          Card.new("four-1", :four, :diamonds, 5),
+          Card.new("four-2", :four, :spades, 5),
+          Card.new("four-3", :four, :clubs, 5)
         ])
 
       game = put_in(game.teams.a.melds, [meld])
@@ -1037,8 +1099,8 @@ defmodule Tranca.GameTest do
 
       meld =
         Meld.new([
-          Card.new("seven-1", :seven, :diamonds, 5),
-          Card.new("seven-2", :seven, :spades, 5),
+          Card.new("four-1", :four, :diamonds, 5),
+          Card.new("four-2", :four, :spades, 5),
           joker
         ])
 
@@ -1053,7 +1115,7 @@ defmodule Tranca.GameTest do
     test "rejects replacing with an invalid meld index" do
       game = started_game()
       current_player = Enum.at(game.players, game.turn)
-      natural = Card.new("natural", :seven, :hearts, 5)
+      natural = Card.new("natural", :four, :hearts, 5)
 
       game = update_player_hand_cards(game, current_player.id, [natural | current_player.hand])
       {:ok, game} = Game.draw_from_deck(game, current_player.id)
@@ -1074,11 +1136,11 @@ defmodule Tranca.GameTest do
       current_player = Enum.at(game.players, game.turn)
 
       joker = Card.new("joker", :joker, nil, 50)
-      natural = Card.new("natural", :seven, :hearts, 5)
+      natural = Card.new("natural", :four, :hearts, 5)
 
       meld =
         Meld.new([
-          Card.new("seven-1", :seven, :diamonds, 5),
+          Card.new("four-1", :four, :diamonds, 5),
           joker
         ])
 
@@ -1119,7 +1181,7 @@ defmodule Tranca.GameTest do
                   :diamonds,
                   :spades
                 ]) do
-            Card.new("canastra-#{i}", :seven, suit, 5)
+            Card.new("canastra-#{i}", :four, suit, 5)
           end
         )
 

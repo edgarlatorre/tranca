@@ -9,9 +9,9 @@ defmodule Tranca.Game.MeldTest do
     test "returns true for three natural cards of the same rank" do
       meld =
         Meld.new([
-          Card.new("1", :seven, :hearts, 5),
-          Card.new("2", :seven, :diamonds, 5),
-          Card.new("3", :seven, :spades, 5)
+          Card.new("1", :four, :hearts, 5),
+          Card.new("2", :four, :diamonds, 5),
+          Card.new("3", :four, :spades, 5)
         ])
 
       assert Meld.valid?(meld)
@@ -20,8 +20,8 @@ defmodule Tranca.Game.MeldTest do
     test "returns true for a meld with wildcards" do
       meld =
         Meld.new([
-          Card.new("1", :seven, :hearts, 5),
-          Card.new("2", :seven, :diamonds, 5),
+          Card.new("1", :four, :hearts, 5),
+          Card.new("2", :four, :diamonds, 5),
           Card.new("3", :two, :spades, 20)
         ])
 
@@ -31,8 +31,8 @@ defmodule Tranca.Game.MeldTest do
     test "returns false for fewer than three cards" do
       meld =
         Meld.new([
-          Card.new("1", :seven, :hearts, 5),
-          Card.new("2", :seven, :diamonds, 5)
+          Card.new("1", :four, :hearts, 5),
+          Card.new("2", :four, :diamonds, 5)
         ])
 
       refute Meld.valid?(meld)
@@ -41,8 +41,8 @@ defmodule Tranca.Game.MeldTest do
     test "returns false for mixed ranks" do
       meld =
         Meld.new([
-          Card.new("1", :seven, :hearts, 5),
-          Card.new("2", :seven, :diamonds, 5),
+          Card.new("1", :four, :hearts, 5),
+          Card.new("2", :four, :diamonds, 5),
           Card.new("3", :eight, :spades, 5)
         ])
 
@@ -63,7 +63,7 @@ defmodule Tranca.Game.MeldTest do
     test "returns false when wildcards exceed natural cards" do
       meld =
         Meld.new([
-          Card.new("1", :seven, :hearts, 5),
+          Card.new("1", :four, :hearts, 5),
           Card.new("2", :two, :diamonds, 20),
           Card.new("3", :joker, nil, 50)
         ])
@@ -74,8 +74,8 @@ defmodule Tranca.Game.MeldTest do
     test "returns true when wildcards equal natural cards" do
       meld =
         Meld.new([
-          Card.new("1", :seven, :hearts, 5),
-          Card.new("2", :seven, :diamonds, 5),
+          Card.new("1", :four, :hearts, 5),
+          Card.new("2", :four, :diamonds, 5),
           Card.new("3", :two, :spades, 20),
           Card.new("4", :joker, nil, 50)
         ])
@@ -88,12 +88,12 @@ defmodule Tranca.Game.MeldTest do
     test "returns the natural rank of the meld" do
       meld =
         Meld.new([
-          Card.new("1", :seven, :hearts, 5),
-          Card.new("2", :seven, :diamonds, 5),
+          Card.new("1", :four, :hearts, 5),
+          Card.new("2", :four, :diamonds, 5),
           Card.new("3", :two, :spades, 20)
         ])
 
-      assert Meld.rank(meld) == :seven
+      assert Meld.rank(meld) == :four
     end
 
     test "returns nil for a meld with only wildcards" do
@@ -109,7 +109,7 @@ defmodule Tranca.Game.MeldTest do
 
   describe "natural_cards/1 and wildcards/1" do
     test "split cards correctly" do
-      natural = Card.new("1", :seven, :hearts, 5)
+      natural = Card.new("1", :four, :hearts, 5)
       wildcard = Card.new("2", :two, :spades, 20)
       meld = Meld.new([natural, wildcard])
 
@@ -136,7 +136,7 @@ defmodule Tranca.Game.MeldTest do
       cards =
         for {suit, i} <-
               Enum.with_index([:hearts, :diamonds, :spades, :clubs, :hearts, :diamonds, :spades]) do
-          Card.new("limpa-#{i}", :seven, suit, 5)
+          Card.new("limpa-#{i}", :four, suit, 5)
         end
 
       meld = Meld.new(cards)
@@ -150,7 +150,7 @@ defmodule Tranca.Game.MeldTest do
       naturals =
         for {suit, i} <-
               Enum.with_index([:hearts, :diamonds, :spades, :clubs, :hearts, :diamonds]) do
-          Card.new("suja-nat-#{i}", :seven, suit, 5)
+          Card.new("suja-nat-#{i}", :four, suit, 5)
         end
 
       wildcard = Card.new("suja-wild", :two, :spades, 20)
@@ -165,7 +165,7 @@ defmodule Tranca.Game.MeldTest do
       cards =
         for {suit, i} <-
               Enum.with_index([:hearts, :diamonds, :spades, :clubs, :hearts, :diamonds]) do
-          Card.new("normal-#{i}", :seven, suit, 5)
+          Card.new("normal-#{i}", :four, suit, 5)
         end
 
       meld = Meld.new(cards)
@@ -177,10 +177,10 @@ defmodule Tranca.Game.MeldTest do
 
     test "does not classify invalid seven-card melds as canastra" do
       cards = [
-        Card.new("1", :seven, :hearts, 5),
-        Card.new("2", :seven, :diamonds, 5),
-        Card.new("3", :seven, :spades, 5),
-        Card.new("4", :seven, :clubs, 5),
+        Card.new("1", :four, :hearts, 5),
+        Card.new("2", :four, :diamonds, 5),
+        Card.new("3", :four, :spades, 5),
+        Card.new("4", :four, :clubs, 5),
         Card.new("5", :eight, :hearts, 5),
         Card.new("6", :eight, :diamonds, 5),
         Card.new("7", :eight, :spades, 5)
@@ -191,6 +191,63 @@ defmodule Tranca.Game.MeldTest do
       assert meld.type == :normal
       refute Meld.canastra?(meld)
       refute Meld.valid?(meld)
+    end
+  end
+
+  describe "set ranks" do
+    defp set_of(rank, wildcards \\ []) do
+      naturals =
+        for {suit, i} <- Enum.with_index([:hearts, :diamonds, :spades]) do
+          Card.new("#{rank}-#{i}", rank, suit, 5)
+        end
+
+      Meld.new(naturals ++ wildcards)
+    end
+
+    test "allows sets of aces and 4s" do
+      assert Meld.validate(set_of(:ace)) == :ok
+      assert Meld.validate(set_of(:four)) == :ok
+      assert Meld.kind(set_of(:ace)) == :set
+    end
+
+    test "allows wildcards in ace and 4 sets" do
+      meld =
+        Meld.new([
+          Card.new("a1", :ace, :hearts, 15),
+          Card.new("a2", :ace, :spades, 15),
+          Card.new("w", :two, :clubs, 20)
+        ])
+
+      assert Meld.validate(meld) == :ok
+    end
+
+    test "rejects sets of any other rank with a specific error" do
+      for rank <- [:three, :five, :six, :seven, :eight, :nine, :ten, :jack, :queen, :king] do
+        assert Meld.validate(set_of(rank)) == {:error, :same_rank_meld_not_allowed}
+        assert Meld.kind(set_of(rank)) == nil
+        refute Meld.valid?(set_of(rank))
+      end
+    end
+
+    test "rejects other-rank sets that include wildcards" do
+      meld = set_of(:king, [Card.new("j", :joker, nil, 50)])
+
+      assert Meld.validate(meld) == {:error, :same_rank_meld_not_allowed}
+    end
+
+    test "returns :invalid_meld for melds that are invalid for other reasons" do
+      too_small =
+        Meld.new([Card.new("k1", :king, :hearts, 10), Card.new("k2", :king, :spades, 10)])
+
+      too_wild =
+        Meld.new([
+          Card.new("k1", :king, :hearts, 10),
+          Card.new("w1", :two, :clubs, 20),
+          Card.new("w2", :joker, nil, 50)
+        ])
+
+      assert Meld.validate(too_small) == {:error, :invalid_meld}
+      assert Meld.validate(too_wild) == {:error, :invalid_meld}
     end
   end
 

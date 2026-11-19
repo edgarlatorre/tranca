@@ -363,8 +363,9 @@ defmodule Tranca.Game do
   @doc """
   Lays down a meld from the player's hand to their team's meld area.
 
-  The selected cards must form a valid meld (three or more cards of the
-  same rank, with at least one natural card).
+  The selected cards must form a valid meld (see `Tranca.Game.Meld.validate/1`):
+  a set of aces or 4s, or a same-suit sequence. Sets of any other rank are
+  rejected with `:same_rank_meld_not_allowed`.
   """
   @spec meld(t(), String.t(), [String.t()]) :: {:ok, t()} | {:error, atom()}
   def meld(%__MODULE__{status: :playing} = game, player_id, card_ids)
@@ -372,8 +373,8 @@ defmodule Tranca.Game do
     with :ok <- validate_turn(game, player_id),
          :ok <- validate_drawn(game),
          {:ok, cards, hand} <- remove_cards_from_hand(game, player_id, card_ids),
-         true <- Meld.valid?(Meld.new(cards)) do
-      meld = Meld.new(cards)
+         meld = Meld.new(cards),
+         :ok <- Meld.validate(meld) do
       current_player = Enum.at(game.players, game.turn)
 
       game =
@@ -382,9 +383,6 @@ defmodule Tranca.Game do
         |> add_meld_to_team(current_player.team, meld)
 
       {:ok, game}
-    else
-      false -> {:error, :invalid_meld}
-      error -> error
     end
   end
 
@@ -394,8 +392,7 @@ defmodule Tranca.Game do
   @doc """
   Adds a card from the player's hand to one of their team's existing melds.
 
-  The card must keep the meld valid (same rank for naturals, wildcard limit
-  respected). The team's first-meld flag must already be set.
+  The card must keep the meld valid (see `Tranca.Game.Meld.validate/1`). The team's first-meld flag must already be set.
   """
   @spec add_to_meld(t(), String.t(), integer(), String.t()) :: {:ok, t()} | {:error, atom()}
   def add_to_meld(%__MODULE__{status: :playing} = game, player_id, meld_index, card_id) do
@@ -407,7 +404,7 @@ defmodule Tranca.Game do
          true <- team.first_meld_done,
          {:ok, card, hand} <- remove_card_from_hand(game, player_id, card_id),
          updated_meld = Meld.new(meld.cards ++ [card]),
-         true <- Meld.valid?(updated_meld) do
+         :ok <- Meld.validate(updated_meld) do
       game =
         game
         |> update_player_hand(player_id, hand)
