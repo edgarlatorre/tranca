@@ -128,11 +128,44 @@ defmodule Tranca.Games do
   end
 
   @doc """
+  Returns the persisted round results for a game, ordered by round number.
+  """
+  @spec list_rounds(String.t()) :: {:ok, [GameRound.t()]} | {:error, :game_not_found}
+  def list_rounds(game_id) do
+    with {:ok, record} <- fetch_game_record(game_id) do
+      rounds =
+        GameRound
+        |> where(game_id: ^record.id)
+        |> order_by(asc: :round_number)
+        |> Repo.all()
+
+      {:ok, rounds}
+    end
+  end
+
+  @doc """
   Returns the persisted game record for the given game ID.
   """
   @spec get_game_record(String.t()) :: {:ok, GameRecord.t()} | {:error, :game_not_found}
   def get_game_record(game_id) do
     fetch_game_record(game_id)
+  end
+
+  @doc """
+  Returns the persisted player record for a game and user.
+  """
+  @spec get_player_record(String.t(), String.t()) ::
+          {:ok, GamePlayer.t()} | {:error, :player_not_found | :game_not_found}
+  def get_player_record(game_id, user_id) do
+    with {:ok, record} <- fetch_game_record(game_id) do
+      GamePlayer
+      |> where(game_id: ^record.id, user_id: ^user_id)
+      |> Repo.one()
+      |> case do
+        nil -> {:error, :player_not_found}
+        player -> {:ok, player}
+      end
+    end
   end
 
   @doc """
@@ -198,6 +231,32 @@ defmodule Tranca.Games do
   end
 
   @doc """
+  Starts a waiting game once it is full.
+
+  Validates that the persisted game is still waiting and has no open seats,
+  then transitions the running game server to the playing state and updates
+  the database record.
+  """
+  @spec start_game(String.t()) :: {:ok, Game.t()} | {:error, atom()}
+  def start_game(game_id) do
+    with {:ok, record} <- fetch_game_record(game_id),
+         true <- record.status == "waiting",
+         {:ok, 0} <- open_seats(game_id),
+         {:ok, game} <- start(game_id, generate_seed()),
+         {:ok, _record} <- update_game_record(game_id, status: "playing") do
+      {:ok, game}
+    else
+      false -> {:error, :game_already_started}
+      {:ok, _open} -> {:error, :not_enough_players}
+      error -> error
+    end
+  end
+
+  defp generate_seed do
+    :rand.uniform(1_000_000_000)
+  end
+
+  @doc """
   Draws the top card from the deck for the given player.
   """
   @spec draw_from_deck(String.t(), String.t()) :: {:ok, Game.t()} | {:error, atom()}
@@ -234,6 +293,28 @@ defmodule Tranca.Games do
   def meld(game_id, player_id, card_ids) do
     with {:ok, pid} <- via(game_id) do
       GenServer.call(pid, {:meld, player_id, card_ids})
+    end
+  end
+
+  @doc """
+  Adds a card from the player's hand to an existing team meld.
+  """
+  @spec add_to_meld(String.t(), String.t(), integer(), String.t()) ::
+          {:ok, Game.t()} | {:error, atom()}
+  def add_to_meld(game_id, player_id, meld_index, card_id) do
+    with {:ok, pid} <- via(game_id) do
+      GenServer.call(pid, {:add_to_meld, player_id, meld_index, card_id})
+    end
+  end
+
+  @doc """
+  Re-adds a player to an in-progress game using their persisted seat and team.
+  """
+  @spec rejoin_player(String.t(), String.t(), integer(), Game.Player.team()) ::
+          {:ok, Game.t()} | {:error, atom()}
+  def rejoin_player(game_id, user_id, seat, team) do
+    with {:ok, pid} <- via(game_id) do
+      GenServer.call(pid, {:rejoin_player, user_id, seat, team})
     end
   end
 

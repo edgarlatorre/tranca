@@ -22,6 +22,7 @@ defmodule Tranca.Games.Server do
   @doc """
   Returns the child spec for this GenServer.
   """
+  @spec child_spec(keyword()) :: Supervisor.child_spec()
   def child_spec(opts) do
     %{
       id: {__MODULE__, Keyword.fetch!(opts, :game_id)},
@@ -100,6 +101,20 @@ defmodule Tranca.Games.Server do
 
   def handle_call({:meld, player_id, card_ids}, _from, state) do
     case Game.meld(state.game, player_id, card_ids) do
+      {:ok, game} -> broadcast_and_reply(state, game)
+      error -> {:reply, error, state}
+    end
+  end
+
+  def handle_call({:add_to_meld, player_id, meld_index, card_id}, _from, state) do
+    case Game.add_to_meld(state.game, player_id, meld_index, card_id) do
+      {:ok, game} -> broadcast_and_reply(state, game)
+      error -> {:reply, error, state}
+    end
+  end
+
+  def handle_call({:rejoin_player, user_id, seat, team}, _from, state) do
+    case Game.rejoin_player(state.game, user_id, seat, team) do
       {:ok, game} -> broadcast_and_reply(state, game)
       error -> {:reply, error, state}
     end

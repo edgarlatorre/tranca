@@ -26,6 +26,19 @@ This implementation follows **Tranca com morto**:
 - **Red 3:** +100 bonus when melded
 - **Going out:** Empty hand + at least one canastra
 
+## How to Play
+
+1. Open the app and create a 2- or 4-player game from the lobby.
+2. Share the 6-character game code so other players can join.
+3. Once the lobby is full, any seated player can click **Start Game**.
+4. On your turn:
+   - Draw from the **Deck** or the **Discard** pile (if not blocked by a black 3).
+   - Meld groups of 3+ cards, add cards to existing melds, or replace a joker.
+   - Discard one card to end your turn.
+5. The first team to empty a hand while their team has a canastra takes the **morto**.
+6. Click **Score Round** when a hand ends to see the round breakdown, then **Continue** to play the next round.
+7. The first team to reach the target score wins the match.
+
 ## Requirements
 
 - Elixir 1.19+

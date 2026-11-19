@@ -1,0 +1,273 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} wide>
+  <div class="space-y-4">
+    <%= if @error do %>
+      <div class="card bg-error/10 text-error p-6 text-center">
+        <p class="text-lg font-semibold">{@error}</p>
+        <.link navigate={~p"/lobby"} class="btn btn-primary mt-4">Back to Lobby</.link>
+      </div>
+    <% else %>
+      <header class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 class="text-xl sm:text-2xl font-bold tracking-tight">Game {@game_id}</h1>
+          <p class="text-sm opacity-75">
+            <%= case @game.status do %>
+              <% :waiting -> %>
+                Waiting for players
+              <% :playing -> %>
+                Round {@game.round}
+              <% :finished -> %>
+                Game Over
+            <% end %>
+          </p>
+        </div>
+
+        <div class="flex gap-2">
+          <%= for team_id <- [:a, :b] do %>
+            <div
+              id={"team-#{team_id}-score"}
+              class="card bg-base-200 shadow-sm px-4 py-2 flex-row items-center gap-3"
+            >
+              <div>
+                <p class="text-xs font-semibold uppercase opacity-60">Team {team_id}</p>
+                <p class="text-xs opacity-60">
+                  <%= for player <- @game.players, player.team == team_id do %>
+                    <span class="mr-1">
+                      Seat {player.seat + 1}
+                      <%= if @current_player && @current_player.id == player.id do %>
+                        <span class="badge badge-primary badge-xs ml-1">You</span>
+                      <% end %>
+                    </span>
+                  <% end %>
+                </p>
+              </div>
+              <p class="text-2xl font-bold tabular-nums">
+                {Map.fetch!(@game.teams, team_id).score}
+              </p>
+            </div>
+          <% end %>
+        </div>
+      </header>
+
+      <%= if @message do %>
+        <div class="card bg-warning/10 text-warning p-3 text-center">
+          <p>{@message}</p>
+        </div>
+      <% end %>
+
+      <%= if @game.status == :waiting do %>
+        <div class="card bg-base-200 shadow p-6 text-center space-y-4">
+          <p class="text-lg opacity-75">
+            {length(@game.players)} / {@game.player_count} players joined
+          </p>
+
+          <%= if @current_player do %>
+            <p class="text-sm opacity-60">
+              You are seated at position {@current_player.seat + 1}.
+            </p>
+          <% else %>
+            <p class="text-sm text-error">This game is full.</p>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%= if @game.status in [:playing, :finished] do %>
+        <.game_melds
+          id="opponent-melds"
+          label={if(@current_player, do: "Opponents", else: "Team")}
+          team_id={opponent_team(@current_player)}
+          team={Map.fetch!(@game.teams, opponent_team(@current_player))}
+        />
+
+        <.game_table
+          deck_count={length(@game.deck)}
+          discard_top={List.first(@game.discard_pile)}
+          morto_count={length(@game.morto)}
+          morto_taken_by={@game.morto_taken_by}
+          on_draw_deck="draw_deck"
+          on_draw_discard="draw_discard"
+          discard_disabled={not @can_draw or @discard_blocked}
+        />
+
+        <%= if @discard_blocked do %>
+          <div id="black-three-block" class="card bg-error/10 text-error p-4 text-center">
+            <p>
+              The discard pile is blocked by a black three. Draw from the deck instead.
+            </p>
+          </div>
+        <% end %>
+
+        <%= if @show_round_end do %>
+          <div id="round-end" class="card bg-base-200 shadow p-6 space-y-6">
+            <h2 class="text-2xl font-bold text-center">Round {@game.round} Complete</h2>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <%= for {team_id, breakdown} <- @round_breakdown do %>
+                <div class="card bg-base-100 shadow p-4 space-y-2">
+                  <h3 class="text-lg font-semibold">Team {String.upcase(to_string(team_id))}</h3>
+                  <ul class="text-sm space-y-1">
+                    <li class="flex justify-between">
+                      <span>Meld points</span>
+                      <span>{breakdown.meld_points}</span>
+                    </li>
+                    <li class="flex justify-between">
+                      <span>Canastra bonus</span>
+                      <span>+{breakdown.canastra_bonus}</span>
+                    </li>
+                    <li class="flex justify-between">
+                      <span>Red three bonus</span>
+                      <span>+{breakdown.red_three_bonus}</span>
+                    </li>
+                    <li class="flex justify-between text-error">
+                      <span>Black three penalty</span>
+                      <span>{breakdown.black_three_penalty}</span>
+                    </li>
+                    <li class="flex justify-between border-t border-base-300 pt-1 font-bold">
+                      <span>Round total</span>
+                      <span>{breakdown.round_total}</span>
+                    </li>
+                  </ul>
+                </div>
+              <% end %>
+            </div>
+
+            <div class="text-center">
+              <button
+                id="continue-round"
+                type="button"
+                phx-click="continue_round"
+                class="btn btn-primary w-full sm:w-auto min-h-[2.75rem]"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        <% end %>
+
+        <.game_melds
+          id="own-melds"
+          label={if(@current_player, do: "Your team", else: "Team")}
+          team_id={own_team(@current_player)}
+          team={Map.fetch!(@game.teams, own_team(@current_player))}
+          on_add_to_meld={if(length(@selected_card_ids) == 1 && @can_act, do: "add_to_meld")}
+          on_replace_joker={if(length(@selected_card_ids) == 1 && @can_act, do: "replace_joker")}
+          selected_card_id={List.first(@selected_card_ids)}
+        />
+
+        <section class="card bg-base-200 shadow p-3 sm:p-4 space-y-3">
+          <h2 class="text-lg font-semibold text-center">
+            Your Hand
+            <%= if @current_player do %>
+              <span class="text-sm font-normal opacity-60">({length(@current_player.hand)})</span>
+            <% end %>
+          </h2>
+
+          <%= if @current_player do %>
+            <.game_hand
+              cards={@current_player.hand}
+              selected_ids={@selected_card_ids}
+              on_select="select_card"
+              disabled={@game.status == :finished}
+            />
+
+            <div class="flex flex-col sm:flex-row justify-center gap-2">
+              <button
+                id="meld-selected"
+                type="button"
+                phx-click="meld_selected"
+                disabled={length(@selected_card_ids) < 3 or not @can_act}
+                class={[
+                  "btn btn-primary w-full sm:w-auto min-h-[2.75rem]",
+                  (length(@selected_card_ids) < 3 or not @can_act) && "btn-disabled"
+                ]}
+              >
+                Meld Selected
+              </button>
+
+              <button
+                id="discard-selected"
+                type="button"
+                phx-click="discard_selected"
+                disabled={length(@selected_card_ids) != 1 or not @can_act}
+                class={[
+                  "btn btn-secondary w-full sm:w-auto min-h-[2.75rem]",
+                  (length(@selected_card_ids) != 1 or not @can_act) && "btn-disabled"
+                ]}
+              >
+                Discard
+              </button>
+            </div>
+          <% else %>
+            <p class="text-center text-error">You are not seated at this table.</p>
+          <% end %>
+        </section>
+
+        <%= if @current_player && not @show_round_end do %>
+          <div class="text-center">
+            <button
+              id="score-round"
+              type="button"
+              phx-click="score_round"
+              class="btn btn-secondary w-full sm:w-auto min-h-[2.75rem]"
+            >
+              Score Round
+            </button>
+          </div>
+        <% end %>
+      <% end %>
+
+      <%= if @game.status == :finished do %>
+        <div id="game-over" class="card bg-success/10 text-success p-6 text-center space-y-6">
+          <p class="text-3xl font-bold">
+            Team {String.upcase(to_string(@game.winner))} wins!
+          </p>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="card bg-base-100 shadow p-4">
+              <p class="text-sm opacity-75">Team A</p>
+              <p class="text-3xl font-bold">{@game.teams.a.score}</p>
+            </div>
+
+            <div class="card bg-base-100 shadow p-4">
+              <p class="text-sm opacity-75">Team B</p>
+              <p class="text-3xl font-bold">{@game.teams.b.score}</p>
+            </div>
+          </div>
+
+          <%= if @rounds != [] do %>
+            <div class="text-left space-y-2">
+              <h3 class="text-lg font-semibold text-center">Round History</h3>
+              <ul class="space-y-2">
+                <%= for round <- @rounds do %>
+                  <li class="flex justify-between items-center card bg-base-100 shadow p-3">
+                    <span class="font-semibold">Round {round.round_number}</span>
+                    <span class="text-sm">
+                      A {round.team_a_score} · B {round.team_b_score}
+                      <%= if round.winner do %>
+                        · Winner {String.upcase(round.winner)}
+                      <% end %>
+                    </span>
+                  </li>
+                <% end %>
+              </ul>
+            </div>
+          <% end %>
+
+          <div class="flex flex-col sm:flex-row justify-center gap-3">
+            <button
+              id="rematch"
+              type="button"
+              phx-click="rematch"
+              class="btn btn-secondary w-full sm:w-auto min-h-[2.75rem]"
+            >
+              Rematch
+            </button>
+
+            <.link navigate={~p"/lobby"} class="btn btn-primary w-full sm:w-auto min-h-[2.75rem]">
+              Back to Lobby
+            </.link>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</Layouts.app>

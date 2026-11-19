@@ -125,6 +125,24 @@ defmodule Tranca.GamesTest do
       assert length(game.teams.a.melds) == 1
     end
 
+    test "rejoins a player to an in-progress game", %{game_id: game_id} do
+      assert {:ok, _game} = Games.add_player(game_id, "user-1", 0, :a)
+      assert {:ok, _game} = Games.add_player(game_id, "user-2", 1, :b)
+      assert {:ok, game} = Games.start(game_id, 42)
+
+      [player_0, player_1] = Enum.sort_by(game.players, & &1.seat)
+      {:ok, pid} = Tranca.Games.Supervisor.lookup(game_id)
+
+      :sys.replace_state(pid, fn state ->
+        %{state | game: %{state.game | players: [player_0]}}
+      end)
+
+      assert {:ok, game} =
+               Games.rejoin_player(game_id, player_1.user_id, player_1.seat, player_1.team)
+
+      assert length(game.players) == 2
+    end
+
     test "returns an error for missing games" do
       assert {:error, :game_not_found} = Games.get_game("missing-game")
       assert {:error, :game_not_found} = Games.draw_from_deck("missing-game", "x")
@@ -132,6 +150,7 @@ defmodule Tranca.GamesTest do
       assert {:error, :game_not_found} = Games.discard("missing-game", "x", "y")
       assert {:error, :game_not_found} = Games.meld("missing-game", "x", ["y"])
       assert {:error, :game_not_found} = Games.replace_joker("missing-game", "x", 0, "y")
+      assert {:error, :game_not_found} = Games.rejoin_player("missing-game", "x", 0, :a)
       assert {:error, :game_not_found} = Games.score_round("missing-game")
     end
 

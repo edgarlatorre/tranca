@@ -315,6 +315,7 @@ defmodule Tranca.GameTest do
 
       current_player = Enum.find(game.players, &(&1.id == current_player.id))
       assert game.morto == []
+      assert game.morto_taken_by == :a
       assert length(current_player.hand) == 11
     end
 
@@ -328,6 +329,7 @@ defmodule Tranca.GameTest do
       {:ok, game} = Game.discard(game, current_player.id, last_card.id)
 
       assert length(game.morto) == 11
+      assert game.morto_taken_by == nil
       current_player = Enum.find(game.players, &(&1.id == current_player.id))
       assert current_player.hand == []
     end
@@ -378,6 +380,7 @@ defmodule Tranca.GameTest do
 
       teammate = Enum.find(game.players, &(&1.id == teammate.id))
       assert game.morto == []
+      assert game.morto_taken_by == :a
       assert length(teammate.hand) == 22
     end
   end
@@ -406,8 +409,11 @@ defmodule Tranca.GameTest do
     test "rejects invalid winners" do
       game = started_game()
 
+      # Built at runtime so the type checker doesn't reject the invalid value at compile time
+      invalid_winner = Enum.random([:c])
+
       assert_raise FunctionClauseError, fn ->
-        Game.finish(game, :c)
+        Game.finish(game, invalid_winner)
       end
     end
   end
@@ -519,6 +525,56 @@ defmodule Tranca.GameTest do
       game = Game.apply_black_three_penalties(game)
 
       assert game.teams.a.score == -100
+    end
+  end
+
+  describe "round_breakdown/1" do
+    test "returns points, bonuses, and penalties per team" do
+      game = started_game()
+      [player_0, player_1] = Enum.sort_by(game.players, & &1.seat)
+
+      limpa =
+        Meld.new(
+          for {suit, i} <-
+                Enum.with_index([
+                  :hearts,
+                  :diamonds,
+                  :spades,
+                  :clubs,
+                  :hearts,
+                  :diamonds,
+                  :spades
+                ]) do
+            Card.new("limpa-#{i}", :seven, suit, 5)
+          end
+        )
+
+      red_three_meld =
+        Meld.new([
+          Card.new("r3", :three, :hearts, 5),
+          Card.new("seven-1", :seven, :hearts, 5),
+          Card.new("seven-2", :seven, :diamonds, 5)
+        ])
+
+      game =
+        game
+        |> put_in([Access.key(:teams), :a, Access.key(:melds)], [limpa, red_three_meld])
+        |> update_player_hand_cards(player_0.id, [Card.new("b3", :three, :spades, 5)])
+        |> update_player_hand_cards(player_1.id, [Card.new("b3-2", :three, :clubs, 5)])
+
+      breakdown = Game.round_breakdown(game)
+
+      # Limpa: 7 * 5 = 35 meld points + 500 canastra
+      # Red three meld: 3 * 5 = 15 meld points + 100 red three bonus
+      # Black three penalty: -100
+      assert breakdown.a.meld_points == 35 + 15
+      assert breakdown.a.canastra_bonus == 500
+      assert breakdown.a.red_three_bonus == 100
+      assert breakdown.a.black_three_penalty == -100
+      assert breakdown.a.round_total == 35 + 15 + 500 + 100 - 100
+
+      assert breakdown.b.black_three_penalty == -100
+      assert breakdown.b.round_total == -100
     end
   end
 
@@ -748,6 +804,125 @@ defmodule Tranca.GameTest do
       other_player = Enum.at(game.players, 1)
 
       assert {:error, :not_your_turn} = Game.meld(game, other_player.id, ["x", "y", "z"])
+    end
+  end
+
+  describe "add_to_meld/4" do
+    test "adds a matching card to an existing meld" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      meld =
+        Meld.new([
+          Card.new("seven-1", :seven, :hearts, 5),
+          Card.new("seven-2", :seven, :diamonds, 5),
+          Card.new("seven-3", :seven, :spades, 5)
+        ])
+
+      extra = Card.new("seven-4", :seven, :clubs, 5)
+
+      game =
+        game
+        |> put_in([Access.key(:teams), :a, Access.key(:melds)], [meld])
+        |> put_in([Access.key(:teams), :a, Access.key(:first_meld_done)], true)
+        |> update_player_hand_cards(current_player.id, [extra | current_player.hand])
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:ok, game} = Game.add_to_meld(game, current_player.id, 0, extra.id)
+
+      [updated_meld] = game.teams.a.melds
+      assert length(updated_meld.cards) == 4
+      refute Enum.any?(current_player.hand, &(&1.id == extra.id))
+    end
+
+    test "rejects adding a card of a different rank" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      meld =
+        Meld.new([
+          Card.new("seven-1", :seven, :hearts, 5),
+          Card.new("seven-2", :seven, :diamonds, 5),
+          Card.new("seven-3", :seven, :spades, 5)
+        ])
+
+      wrong = Card.new("eight", :eight, :clubs, 5)
+
+      game =
+        game
+        |> put_in([Access.key(:teams), :a, Access.key(:melds)], [meld])
+        |> put_in([Access.key(:teams), :a, Access.key(:first_meld_done)], true)
+        |> update_player_hand_cards(current_player.id, [wrong | current_player.hand])
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:error, :invalid_meld} = Game.add_to_meld(game, current_player.id, 0, wrong.id)
+    end
+
+    test "rejects adding to a meld before the first meld is done" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+
+      meld =
+        Meld.new([
+          Card.new("seven-1", :seven, :hearts, 5),
+          Card.new("seven-2", :seven, :diamonds, 5),
+          Card.new("seven-3", :seven, :spades, 5)
+        ])
+
+      extra = Card.new("seven-4", :seven, :clubs, 5)
+
+      game =
+        game
+        |> put_in([Access.key(:teams), :a, Access.key(:melds)], [meld])
+        |> update_player_hand_cards(current_player.id, [extra | current_player.hand])
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      assert {:error, :invalid_meld} = Game.add_to_meld(game, current_player.id, 0, extra.id)
+    end
+
+    test "rejects adding to a meld out of turn" do
+      game = started_game()
+      other_player = Enum.at(game.players, 1)
+
+      assert {:error, :not_your_turn} =
+               Game.add_to_meld(game, other_player.id, 0, "any-card")
+    end
+  end
+
+  describe "rejoin_player/4" do
+    test "re-adds a player to a playing game" do
+      game = started_game()
+      [player_0, player_1] = Enum.sort_by(game.players, & &1.seat)
+
+      game =
+        game
+        |> Map.put(:players, [player_0])
+        |> put_in([Access.key(:teams), :b, Access.key(:player_ids)], [])
+
+      assert {:ok, game} =
+               Game.rejoin_player(game, player_1.user_id, player_1.seat, player_1.team)
+
+      assert length(game.players) == 2
+      assert Enum.any?(game.players, &(&1.user_id == player_1.user_id))
+      assert game.teams.b.player_ids == ["player-1"]
+    end
+
+    test "rejects rejoining when the seat is taken" do
+      game = started_game()
+      [player_0 | _] = Enum.sort_by(game.players, & &1.seat)
+
+      assert {:error, :seat_taken} =
+               Game.rejoin_player(game, "new-user", player_0.seat, player_0.team)
+    end
+
+    test "rejects rejoining a waiting game" do
+      game = Game.new("game-1", 2) |> add_players([{"user-1", 0, :a}])
+
+      assert {:error, :game_not_playing} =
+               Game.rejoin_player(game, "user-2", 1, :b)
     end
   end
 

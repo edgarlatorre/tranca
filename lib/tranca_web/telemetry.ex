@@ -1,12 +1,21 @@
 defmodule TrancaWeb.Telemetry do
+  @moduledoc """
+  Telemetry supervisor and metrics for the Tranca web application.
+  """
+
   use Supervisor
   import Telemetry.Metrics
 
+  @doc """
+  Starts the telemetry supervisor.
+  """
+  @spec start_link(term()) :: Supervisor.on_start()
   def start_link(arg) do
     Supervisor.start_link(__MODULE__, arg, name: __MODULE__)
   end
 
   @impl true
+  @spec init(term()) :: {:ok, Supervisor.sup_flags()} | :ignore
   def init(_arg) do
     children = [
       # Telemetry poller will execute the given period measurements
@@ -19,6 +28,10 @@ defmodule TrancaWeb.Telemetry do
     Supervisor.init(children, strategy: :one_for_one)
   end
 
+  @doc """
+  Returns the list of telemetry metrics to collect.
+  """
+  @spec metrics :: [Telemetry.Metrics.t()]
   def metrics do
     [
       # Phoenix Metrics

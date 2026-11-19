@@ -23,6 +23,7 @@ defmodule Tranca.Game do
           teams: %{a: Team.t(), b: Team.t()},
           deck: [Card.t()],
           morto: [Card.t()],
+          morto_taken_by: Team.id() | nil,
           discard_pile: [Card.t()],
           turn: integer(),
           drawn_this_turn: boolean(),
@@ -39,6 +40,7 @@ defmodule Tranca.Game do
     :teams,
     :deck,
     :morto,
+    :morto_taken_by,
     :discard_pile,
     :turn,
     :drawn_this_turn,
@@ -63,6 +65,7 @@ defmodule Tranca.Game do
       teams: %{a: Team.new(:a), b: Team.new(:b)},
       deck: [],
       morto: [],
+      morto_taken_by: nil,
       discard_pile: [],
       turn: 0,
       drawn_this_turn: false,
@@ -186,6 +189,39 @@ defmodule Tranca.Game do
   end
 
   @doc """
+  Returns a breakdown of the current hand's scoring per team.
+
+  Useful for displaying a round-end summary before applying the scores.
+  """
+  @spec round_breakdown(t()) :: %{Team.id() => map()}
+  def round_breakdown(%__MODULE__{} = game) do
+    Map.new(game.teams, fn {team_id, team} ->
+      meld_points = Enum.reduce(team.melds, 0, &(&2 + Meld.points(&1)))
+
+      canastra_bonus =
+        Enum.reduce(team.melds, 0, fn meld, acc ->
+          case meld.type do
+            :limpa -> acc + 500
+            :suja -> acc + 300
+            :normal -> acc
+          end
+        end)
+
+      red_three_bonus = red_three_bonus(team)
+      black_three_penalty = black_three_penalty(game, team_id)
+
+      {team_id,
+       %{
+         meld_points: meld_points,
+         canastra_bonus: canastra_bonus,
+         red_three_bonus: red_three_bonus,
+         black_three_penalty: black_three_penalty,
+         round_total: meld_points + canastra_bonus + red_three_bonus + black_three_penalty
+       }}
+    end)
+  end
+
+  @doc """
   Scores the current hand and updates each team's total score.
 
   Includes meld card values, canastra bonuses, red 3 bonuses, and black 3
@@ -241,6 +277,7 @@ defmodule Tranca.Game do
         game
         |> give_cards_to_player(target_id, game.morto)
         |> Map.put(:morto, [])
+        |> Map.put(:morto_taken_by, current_player.team)
 
       {:ok, game}
     else
@@ -353,6 +390,66 @@ defmodule Tranca.Game do
   end
 
   def meld(%__MODULE__{}, _player_id, _card_ids),
+    do: {:error, :game_not_playing}
+
+  @doc """
+  Adds a card from the player's hand to one of their team's existing melds.
+
+  The card must keep the meld valid (same rank for naturals, wildcard limit
+  respected). The team's first-meld flag must already be set.
+  """
+  @spec add_to_meld(t(), String.t(), integer(), String.t()) :: {:ok, t()} | {:error, atom()}
+  def add_to_meld(%__MODULE__{status: :playing} = game, player_id, meld_index, card_id) do
+    with :ok <- validate_turn(game, player_id),
+         :ok <- validate_drawn(game),
+         current_player = Enum.at(game.players, game.turn),
+         team when not is_nil(team) <- Map.get(game.teams, current_player.team),
+         meld when not is_nil(meld) <- Enum.at(team.melds, meld_index),
+         true <- team.first_meld_done,
+         {:ok, card, hand} <- remove_card_from_hand(game, player_id, card_id),
+         updated_meld = Meld.new(meld.cards ++ [card]),
+         true <- Meld.valid?(updated_meld) do
+      game =
+        game
+        |> update_player_hand(player_id, hand)
+        |> update_meld(current_player.team, meld_index, updated_meld)
+
+      {:ok, game}
+    else
+      nil -> {:error, :invalid_meld_index}
+      false -> {:error, :invalid_meld}
+      error -> error
+    end
+  end
+
+  def add_to_meld(%__MODULE__{}, _player_id, _meld_index, _card_id),
+    do: {:error, :game_not_playing}
+
+  @doc """
+  Re-adds a player to a game in progress, restoring their seat and team.
+
+  Used when a player refreshes the page and the running game server no
+  longer holds their state. The seat must not already be occupied.
+  """
+  @spec rejoin_player(t(), String.t(), integer(), Player.team()) ::
+          {:ok, t()} | {:error, atom()}
+  def rejoin_player(%__MODULE__{status: :playing} = game, user_id, seat, team)
+      when is_integer(seat) and seat >= 0 and seat < game.player_count and
+             team in [:a, :b] do
+    if Enum.any?(game.players, &(&1.seat == seat)) do
+      {:error, :seat_taken}
+    else
+      player = Player.new("player-#{seat}", user_id, seat, team)
+      teams = Map.update!(game.teams, team, &Team.add_player(&1, player.id))
+
+      {:ok, %{game | players: game.players ++ [player], teams: teams}}
+    end
+  end
+
+  def rejoin_player(%__MODULE__{status: :playing}, _user_id, _seat, _team),
+    do: {:error, :invalid_seat_or_team}
+
+  def rejoin_player(%__MODULE__{}, _user_id, _seat, _team),
     do: {:error, :game_not_playing}
 
   @doc """
@@ -582,6 +679,15 @@ defmodule Tranca.Game do
     teams =
       Map.update!(game.teams, team_id, fn team ->
         %{team | melds: team.melds ++ [meld], first_meld_done: true}
+      end)
+
+    %{game | teams: teams}
+  end
+
+  defp update_meld(game, team_id, meld_index, meld) do
+    teams =
+      Map.update!(game.teams, team_id, fn team ->
+        %{team | melds: List.replace_at(team.melds, meld_index, meld)}
       end)
 
     %{game | teams: teams}

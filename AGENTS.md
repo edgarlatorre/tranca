@@ -5,6 +5,17 @@ This is a web application written using the Phoenix web framework.
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues
 - Use the already included and available `:req` (`Req`) library for HTTP requests, **avoid** `:httpoison`, `:tesla`, and `:httpc`. Req is included by default and is the preferred HTTP client for Phoenix apps
 
+### Tranca application conventions
+
+- Anonymous players are identified by the `user_id` key stored in the session by `TrancaWeb.Plugs.UserSession`.
+- Each game runs in its own `Tranca.Games.Server` process, registered by game ID via `Tranca.Games.Registry`.
+- Game state is a pure `Tranca.Game` struct; all mutations go through `Tranca.Games` context functions.
+- PubSub topics:
+  - `"lobby"` for lobby updates and game-start broadcasts.
+  - `"game:#{game_id}"` for game-state updates and rematch redirects.
+- LiveView tests that interact with game servers use `async: false` to avoid SQLite concurrency issues.
+- Always use unique game IDs in tests; game servers persist across tests and reuse can cause `{:already_started, pid}` errors.
+
 ### Phoenix v1.8 guidelines
 
 - **Always** begin your LiveView templates with `<Layouts.app flash={@flash} ...>` which wraps all inner content
