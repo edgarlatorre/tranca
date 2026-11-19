@@ -20,7 +20,6 @@ This implementation follows **Tranca com morto**:
 - **Players:** 2 individual or 4 in partnerships
 - **Deal:** 11 cards per player
 - **Morto:** Extra 11-card pile taken by the first team to go out
-- **First meld minimum:** 75 points
 - **Wildcards:** Jokers and 2s
 - **Black 3:** Blocks the discard pile and costs -100 points if left in hand
 - **Red 3:** +100 bonus when melded
