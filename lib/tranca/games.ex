@@ -308,6 +308,17 @@ defmodule Tranca.Games do
   end
 
   @doc """
+  Places a red 3 from the player's hand in their team's meld area.
+  """
+  @spec place_red_three(String.t(), String.t(), String.t()) ::
+          {:ok, Game.t()} | {:error, atom()}
+  def place_red_three(game_id, player_id, card_id) do
+    with {:ok, pid} <- via(game_id) do
+      GenServer.call(pid, {:place_red_three, player_id, card_id})
+    end
+  end
+
+  @doc """
   Re-adds a player to an in-progress game using their persisted seat and team.
   """
   @spec rejoin_player(String.t(), String.t(), integer(), Game.Player.team()) ::

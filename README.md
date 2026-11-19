@@ -23,7 +23,7 @@ This implementation follows **Tranca com morto**:
 - **Melds:** 3+ cards, either a same-suit sequence (4♥ 5♥ 6♥; the ace can be low or high) or a set of the same rank. Sets are only allowed for aces and 4s (A A A, 4 4 4)
 - **Wildcards:** Jokers and 2s stand in for any card in a meld, but may not outnumber the natural cards
 - **Black 3:** Blocks the discard pile and costs -100 points if left in hand
-- **Red 3:** +100 bonus when melded
+- **Red 3:** +100 bonus when on the table. After drawing, a player can place a single red 3 on its own in their team's meld area and draw a replacement from the deck
 - **Going out:** Empty hand + at least one canastra
 
 ## How to Play

@@ -156,6 +156,20 @@ defmodule TrancaWeb.GameComponents do
         {@label} · Team {String.upcase(to_string(@team_id))}
       </h3>
 
+      <%= if @team.red_threes != [] do %>
+        <div id={"#{@id}-red-threes"} class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-medium uppercase tracking-wide opacity-60">Red 3s</span>
+          <div class="flex flex-wrap gap-1">
+            <%= for card <- @team.red_threes do %>
+              <.game_card card={card} id={"red-three-#{card.id}"} />
+            <% end %>
+          </div>
+          <span class="badge badge-sm badge-error badge-outline">
+            +{length(@team.red_threes) * 100}
+          </span>
+        </div>
+      <% end %>
+
       <%= if @team.melds == [] do %>
         <p class="text-sm opacity-60">No melds yet.</p>
       <% else %>
