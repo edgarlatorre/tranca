@@ -536,13 +536,34 @@ defmodule TrancaWeb.GameLiveTest do
       assert Enum.any?(game.players, &(&1.user_id == "player-1"))
     end
 
+    test "shows the opponent's melds on top and the player's own team at the bottom", %{
+      conn: conn
+    } do
+      setup_playing_game("meld-sides-game", 2, ["player-1", "player-2"])
+      {:ok, game} = Games.get_game("meld-sides-game")
+
+      for user_id <- ["player-1", "player-2"] do
+        player = Enum.find(game.players, &(&1.user_id == user_id))
+        own = player.team |> to_string() |> String.upcase()
+        other = if player.team == :a, do: "B", else: "A"
+
+        conn = Plug.Test.init_test_session(conn, %{"user_id" => user_id})
+        {:ok, view, _html} = live(conn, ~p"/games/meld-sides-game")
+
+        assert has_element?(view, "#own-melds", "Team #{own}")
+        assert has_element?(view, "#opponent-melds", "Team #{other}")
+      end
+    end
+
     test "renders responsive layout for mobile", %{conn: conn} do
       conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
       setup_playing_game("responsive-game", 2, ["player-1", "player-2"])
 
-      {:ok, _view, html} = live(conn, ~p"/games/responsive-game")
+      {:ok, view, html} = live(conn, ~p"/games/responsive-game")
 
-      assert html =~ "overflow-x-auto"
+      # The hand wraps onto multiple rows instead of scrolling horizontally
+      assert has_element?(view, "#player-hand.flex-wrap")
+      refute html =~ "overflow-x-auto"
       assert html =~ "min-h-[2.75rem]"
       assert html =~ "w-full sm:w-auto"
     end

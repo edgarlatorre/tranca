@@ -54,18 +54,16 @@ defmodule TrancaWeb.GameComponents do
 
   def game_hand(assigns) do
     ~H"""
-    <div class="overflow-x-auto pb-2 -mx-2 px-2 sm:mx-0 sm:px-0">
-      <div class="flex justify-start sm:justify-center gap-1 min-w-min">
-        <%= for card <- @cards do %>
-          <.game_card
-            card={card}
-            selected={card.id in @selected_ids}
-            phx-click={@on_select}
-            phx-value-card_id={card.id}
-            disabled={@disabled}
-          />
-        <% end %>
-      </div>
+    <div id="player-hand" class="flex flex-wrap justify-center gap-1 sm:gap-1.5 pt-2">
+      <%= for card <- @cards do %>
+        <.game_card
+          card={card}
+          selected={card.id in @selected_ids}
+          phx-click={@on_select}
+          phx-value-card_id={card.id}
+          disabled={@disabled}
+        />
+      <% end %>
     </div>
     """
   end
@@ -137,66 +135,69 @@ defmodule TrancaWeb.GameComponents do
   end
 
   @doc """
-  Renders the melds for both teams.
+  Renders one team's melds.
+
+  Action buttons (add a card, replace a joker) are only shown when the
+  corresponding event names are given, so pass them only for the player's
+  own team.
   """
-  attr :teams, :map, required: true
+  attr :id, :string, required: true
+  attr :team_id, :atom, required: true
+  attr :team, :map, required: true
+  attr :label, :string, required: true
   attr :on_add_to_meld, :string, default: nil
   attr :on_replace_joker, :string, default: nil
   attr :selected_card_id, :string, default: nil
 
   def game_melds(assigns) do
     ~H"""
-    <div class="space-y-4">
-      <%= for {team_id, team} <- @teams do %>
-        <div class="card bg-base-200 shadow p-4 space-y-3">
-          <h3 class="text-lg font-semibold">Team {String.upcase(to_string(team_id))}</h3>
+    <div id={@id} class="card bg-base-200 shadow p-3 sm:p-4 space-y-3">
+      <h3 class="text-sm font-semibold uppercase tracking-wide opacity-70">
+        {@label} · Team {String.upcase(to_string(@team_id))}
+      </h3>
 
-          <%= if team.melds == [] do %>
-            <p class="text-sm opacity-60">No melds yet.</p>
-          <% else %>
-            <ul class="space-y-3">
-              <%= for {meld, index} <- Enum.with_index(team.melds) do %>
-                <li class="space-y-1">
-                  <div class="flex flex-wrap gap-1">
-                    <%= for card <- meld.cards do %>
-                      <.game_card card={card} />
-                    <% end %>
-                  </div>
+      <%= if @team.melds == [] do %>
+        <p class="text-sm opacity-60">No melds yet.</p>
+      <% else %>
+        <ul class="flex flex-wrap gap-x-6 gap-y-3">
+          <%= for {meld, index} <- Enum.with_index(@team.melds) do %>
+            <li class="space-y-1">
+              <div class="flex flex-wrap gap-1">
+                <%= for card <- meld.cards do %>
+                  <.game_card card={card} />
+                <% end %>
+              </div>
 
-                  <div class="flex flex-wrap gap-2">
-                    <%= if @on_add_to_meld && @selected_card_id do %>
-                      <button
-                        type="button"
-                        phx-click={@on_add_to_meld}
-                        phx-value-meld_index={index}
-                        class="text-xs btn btn-xs btn-ghost"
-                      >
-                        Add selected card
-                      </button>
-                    <% end %>
+              <div class="flex flex-wrap items-center gap-2">
+                <%= if meld.type in [:limpa, :suja] do %>
+                  <span class="badge badge-sm badge-success">Canastra</span>
+                <% end %>
 
-                    <%= if @on_replace_joker && @selected_card_id && joker_in_meld?(meld) do %>
-                      <button
-                        type="button"
-                        phx-click={@on_replace_joker}
-                        phx-value-meld_index={index}
-                        class="text-xs btn btn-xs btn-secondary"
-                      >
-                        Replace joker
-                      </button>
-                    <% end %>
-                  </div>
+                <%= if @on_add_to_meld && @selected_card_id do %>
+                  <button
+                    type="button"
+                    phx-click={@on_add_to_meld}
+                    phx-value-meld_index={index}
+                    class="text-xs btn btn-xs btn-ghost"
+                  >
+                    Add selected card
+                  </button>
+                <% end %>
 
-                  <%= if meld.type in [:limpa, :suja] do %>
-                    <span class="badge badge-sm badge-success">
-                      Canastra
-                    </span>
-                  <% end %>
-                </li>
-              <% end %>
-            </ul>
+                <%= if @on_replace_joker && @selected_card_id && joker_in_meld?(meld) do %>
+                  <button
+                    type="button"
+                    phx-click={@on_replace_joker}
+                    phx-value-meld_index={index}
+                    class="text-xs btn btn-xs btn-secondary"
+                  >
+                    Replace joker
+                  </button>
+                <% end %>
+              </div>
+            </li>
           <% end %>
-        </div>
+        </ul>
       <% end %>
     </div>
     """

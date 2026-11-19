@@ -332,4 +332,15 @@ defmodule TrancaWeb.GameLive do
   defp format_error(:invalid_replacement_card), do: "Selected card cannot replace the joker."
   defp format_error(:invalid_meld_index), do: "Invalid meld."
   defp format_error(_reason), do: "Could not perform that action."
+
+  # Spectators see Team A as "own" (bottom) and Team B as opponents (top).
+  defp own_team(nil), do: :a
+  defp own_team(%{team: team}), do: team
+
+  defp opponent_team(player) do
+    case own_team(player) do
+      :a -> :b
+      :b -> :a
+    end
+  end
 end
