@@ -3,7 +3,8 @@ defmodule TrancaWeb.LobbyLive do
   LiveView for the game lobby.
 
   Players can see open games, create a new game, or join an existing game by
-  its code.
+  its code. Games start automatically once every seat is filled, so the
+  lobby only lists games that are still waiting for players.
   """
 
   use TrancaWeb, :live_view
@@ -70,27 +71,9 @@ defmodule TrancaWeb.LobbyLive do
     end
   end
 
-  def handle_event("start_game", %{"game_id" => game_id}, socket) do
-    case Games.start_game(game_id) do
-      {:ok, _game} ->
-        Phoenix.PubSub.broadcast(Tranca.PubSub, "lobby", {:game_started, game_id})
-        {:noreply, push_navigate(socket, to: "/games/#{game_id}")}
-
-      {:error, :not_enough_players} ->
-        {:noreply, put_flash(socket, :error, "Not enough players to start the game.")}
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Could not start the game. Please try again.")}
-    end
-  end
-
   @impl true
   def handle_info(:lobby_updated, socket) do
     {:noreply, assign(socket, games: Games.list_waiting_games())}
-  end
-
-  def handle_info({:game_started, game_id}, socket) do
-    {:noreply, push_navigate(socket, to: "/games/#{game_id}")}
   end
 
   defp generate_game_code do

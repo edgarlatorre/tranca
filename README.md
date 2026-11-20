@@ -30,7 +30,7 @@ This implementation follows **Tranca com morto**:
 
 1. Open the app and create a 2- or 4-player game from the lobby.
 2. Share the 6-character game code so other players can join.
-3. Once the lobby is full, any seated player can click **Start Game**.
+3. The match starts automatically as soon as every seat is filled. Players are identified per browser session, so each player needs their own browser (a private window works for testing on one machine).
 4. On your turn:
    - Draw from the **Deck** or the **Discard** pile (if not blocked by a black 3).
    - Meld groups of 3+ cards, add cards to existing melds, or replace a joker.

@@ -11,13 +11,52 @@ defmodule TrancaWeb.GameLiveTest do
   describe "GameLive" do
     test "renders the game table for a waiting game", %{conn: conn} do
       conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
-      setup_waiting_game("waiting-game", 2, ["player-1", "player-2"])
+      setup_waiting_game("waiting-game", 4, ["player-1", "player-2"])
 
       {:ok, view, _html} = live(conn, ~p"/games/waiting-game")
 
       assert has_element?(view, "h1", "Game waiting-game")
       assert has_element?(view, "p", "Waiting for players")
-      assert has_element?(view, "p", "2 / 2 players joined")
+      assert has_element?(view, "p", "2 / 4 players joined")
+      assert has_element?(view, "#waiting-hint", "starts automatically")
+    end
+
+    test "starts the match for everyone when the second player joins", %{conn: conn} do
+      setup_waiting_game("auto-start-game", 2, ["creator"])
+
+      creator_conn = Plug.Test.init_test_session(conn, %{"user_id" => "creator"})
+      {:ok, creator_view, _html} = live(creator_conn, ~p"/games/auto-start-game")
+      assert has_element?(creator_view, "p", "1 / 2 players joined")
+
+      # The second player opens the game link and takes the last seat.
+      joiner_conn = Plug.Test.init_test_session(build_conn(), %{"user_id" => "joiner"})
+      {:ok, joiner_view, _html} = live(joiner_conn, ~p"/games/auto-start-game")
+
+      assert {:ok, game} = Games.get_game("auto-start-game")
+      assert game.status == :playing
+      assert {:ok, record} = Games.get_game_record("auto-start-game")
+      assert record.status == "playing"
+
+      for view <- [creator_view, joiner_view] do
+        refute has_element?(view, "#waiting-room")
+        assert has_element?(view, "#player-hand")
+        assert has_element?(view, "#draw-deck")
+      end
+    end
+
+    test "opening the game again in the same session does not take a second seat", %{
+      conn: conn
+    } do
+      setup_waiting_game("same-session-game", 2, ["creator"])
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "creator"})
+
+      {:ok, _view, _html} = live(conn, ~p"/games/same-session-game")
+      {:ok, view, _html} = live(conn, ~p"/games/same-session-game")
+
+      assert has_element?(view, "p", "1 / 2 players joined")
+      assert {:ok, game} = Games.get_game("same-session-game")
+      assert game.status == :waiting
+      assert length(game.players) == 1
     end
 
     test "auto-joins a waiting game when user is not seated", %{conn: conn} do
@@ -39,13 +78,14 @@ defmodule TrancaWeb.GameLiveTest do
       assert has_element?(view, "p", "Game not found")
     end
 
-    test "shows a full game error when user is not seated", %{conn: conn} do
+    test "shows a full game to a user who is not seated", %{conn: conn} do
       conn = Plug.Test.init_test_session(conn, %{"user_id" => "spectator"})
-      setup_waiting_game("full-waiting-game", 2, ["player-1", "player-2"])
+      setup_waiting_game("spectated-game", 2, ["player-1", "player-2"])
 
-      {:ok, view, _html} = live(conn, ~p"/games/full-waiting-game")
+      {:ok, view, _html} = live(conn, ~p"/games/spectated-game")
 
-      assert has_element?(view, "p", "This game is full")
+      assert has_element?(view, "p", "You are not seated at this table")
+      refute has_element?(view, "#player-hand")
     end
 
     test "renders playing game state", %{conn: conn} do
@@ -616,11 +656,59 @@ defmodule TrancaWeb.GameLiveTest do
 
       {:ok, view, html} = live(conn, ~p"/games/responsive-game")
 
-      # The hand wraps onto multiple rows instead of scrolling horizontally
+      # The hand and the action bar wrap onto multiple rows instead of
+      # scrolling horizontally, and actions keep 44px touch targets.
       assert has_element?(view, "#player-hand.flex-wrap")
+      assert has_element?(view, "#table-actions.flex-wrap")
       refute html =~ "overflow-x-auto"
       assert html =~ "min-h-[2.75rem]"
-      assert html =~ "w-full sm:w-auto"
+    end
+
+    test "seats players around the table relative to the viewer", %{conn: conn} do
+      setup_playing_game("seating-game", 4, ["p1", "p2", "p3", "p4"])
+      {:ok, game} = Games.get_game("seating-game")
+      me = Enum.find(game.players, &(&1.user_id == "p2"))
+      seat_at = fn offset -> rem(me.seat + offset, 4) end
+
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "p2"})
+      {:ok, view, _html} = live(conn, ~p"/games/seating-game")
+
+      # You sit at the bottom (your hand), the next player on the left,
+      # your partner at the top and the last player on the right.
+      refute has_element?(view, "#seat-#{me.seat}")
+      assert has_element?(view, "#your-seat #player-hand")
+      assert has_element?(view, "#seat-#{seat_at.(1)}[data-position='left']")
+      assert has_element?(view, "#seat-#{seat_at.(2)}[data-position='top']")
+      assert has_element?(view, "#seat-#{seat_at.(3)}[data-position='right']")
+    end
+
+    test "seats the opponent at the top in a 2-player game", %{conn: conn} do
+      setup_playing_game("seating-2p-game", 2, ["player-1", "player-2"])
+      {:ok, game} = Games.get_game("seating-2p-game")
+      opponent = Enum.find(game.players, &(&1.user_id == "player-2"))
+
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
+      {:ok, view, _html} = live(conn, ~p"/games/seating-2p-game")
+
+      assert has_element?(view, "#seat-#{opponent.seat}[data-position='top']")
+      refute has_element?(view, "[data-position='left']")
+      refute has_element?(view, "[data-position='right']")
+    end
+
+    test "shows whose turn it is in the centre of the table", %{conn: conn} do
+      setup_playing_game("turn-status-game", 2, ["player-1", "player-2"])
+      {:ok, game} = Games.get_game("turn-status-game")
+      current = Tranca.Game.current_player(game)
+      waiting = Enum.find(game.players, &(&1.id != current.id))
+
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => current.user_id})
+      {:ok, view, _html} = live(conn, ~p"/games/turn-status-game")
+      assert has_element?(view, "#turn-status", "Your turn")
+
+      conn = Plug.Test.init_test_session(build_conn(), %{"user_id" => waiting.user_id})
+      {:ok, view, _html} = live(conn, ~p"/games/turn-status-game")
+      assert has_element?(view, "#turn-status", "Seat #{current.seat + 1} is playing")
+      assert has_element?(view, "#seat-#{current.seat}[data-position='top']")
     end
   end
 
@@ -633,9 +721,11 @@ defmodule TrancaWeb.GameLiveTest do
     end)
   end
 
+  # Filling every seat starts the match automatically.
   defp setup_playing_game(game_id, player_count, user_ids) do
     setup_waiting_game(game_id, player_count, user_ids)
-    {:ok, _game} = Games.start_game(game_id)
+    {:ok, %{status: :playing} = game} = Games.get_game(game_id)
+    {:ok, game}
   end
 
   defp prepare_player_hand(game_id, player_id, hand) do

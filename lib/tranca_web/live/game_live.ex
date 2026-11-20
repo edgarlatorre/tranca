@@ -252,17 +252,73 @@ defmodule TrancaWeb.GameLive do
       my_turn: false,
       can_draw: false,
       can_act: false,
-      discard_blocked: false
+      discard_blocked: false,
+      seats: %{},
+      turn_player_id: nil,
+      turn_status: nil
     )
   end
 
   defp assign_helpers(socket) do
-    assign(socket,
-      my_turn: my_turn?(socket),
-      can_draw: can_draw?(socket),
-      can_act: can_act?(socket),
-      discard_blocked: discard_blocked?(socket)
-    )
+    game = socket.assigns.game
+
+    socket =
+      assign(socket,
+        my_turn: my_turn?(socket),
+        can_draw: can_draw?(socket),
+        can_act: can_act?(socket),
+        discard_blocked: discard_blocked?(socket),
+        seats: seat_positions(game, socket.assigns.current_player),
+        turn_player_id: turn_player_id(game)
+      )
+
+    assign(socket, :turn_status, turn_status(socket.assigns))
+  end
+
+  # Places every player around the table relative to the viewer, who sits
+  # at the bottom. Turn order goes clockwise: the next player sits on the
+  # left, the partner (4 players) or opponent (2 players) at the top.
+  # Spectators see the table from seat 1.
+  defp seat_positions(game, current_player) do
+    anchor = if current_player, do: current_player.seat, else: 0
+
+    positions =
+      case game.player_count do
+        2 -> [:bottom, :top]
+        4 -> [:bottom, :left, :top, :right]
+      end
+
+    Map.new(game.players, fn player ->
+      offset = Integer.mod(player.seat - anchor, game.player_count)
+      {Enum.at(positions, offset), player}
+    end)
+  end
+
+  defp turn_player_id(%Game{status: :playing} = game) do
+    case Game.current_player(game) do
+      nil -> nil
+      player -> player.id
+    end
+  end
+
+  defp turn_player_id(_game), do: nil
+
+  # One-line hint in the centre of the table about whose turn it is and
+  # what to do next.
+  defp turn_status(assigns) do
+    cond do
+      assigns.game.status != :playing -> nil
+      assigns.can_draw -> "Your turn · draw from the deck or discard pile"
+      assigns.can_act -> "Your turn · meld, then discard to end your turn"
+      true -> waiting_on(assigns.game, assigns.turn_player_id)
+    end
+  end
+
+  defp waiting_on(game, turn_player_id) do
+    case Enum.find(game.players, &(&1.id == turn_player_id)) do
+      nil -> nil
+      player -> "Seat #{player.seat + 1} is playing"
+    end
   end
 
   defp maybe_join_user(%Game{status: :waiting} = game, game_id, user_id) do
