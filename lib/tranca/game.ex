@@ -173,7 +173,8 @@ defmodule Tranca.Game do
   end
 
   @doc """
-  Applies a +100 point bonus for each red 3 that has been melded to the table.
+  Applies a +100 point bonus for each red 3 on the table, whether placed on
+  its own or inside a meld.
 
   Bonuses are applied per team.
   """
@@ -390,6 +391,42 @@ defmodule Tranca.Game do
     do: {:error, :game_not_playing}
 
   @doc """
+  Places a single red 3 from the player's hand in their team's meld area.
+
+  The player must have drawn for the turn. The red 3 is kept apart from the
+  team's melds and earns the usual +100 bonus at the end of the round. The
+  player then draws a replacement card from the deck (no replacement when
+  the deck is empty). Any other card is rejected with `:not_a_red_three`.
+  """
+  @spec place_red_three(t(), String.t(), String.t()) :: {:ok, t()} | {:error, atom()}
+  def place_red_three(%__MODULE__{status: :playing} = game, player_id, card_id) do
+    with :ok <- validate_turn(game, player_id),
+         :ok <- validate_drawn(game),
+         {:ok, card, hand} <- remove_card_from_hand(game, player_id, card_id),
+         true <- Card.red_three?(card) || {:error, :not_a_red_three} do
+      current_player = Enum.at(game.players, game.turn)
+
+      teams =
+        Map.update!(game.teams, current_player.team, fn team ->
+          %{team | red_threes: team.red_threes ++ [card]}
+        end)
+
+      game = update_player_hand(%{game | teams: teams}, player_id, hand)
+
+      case game.deck do
+        [replacement | deck] ->
+          {:ok, %{give_card_to_player(game, player_id, replacement) | deck: deck}}
+
+        [] ->
+          {:ok, game}
+      end
+    end
+  end
+
+  def place_red_three(%__MODULE__{}, _player_id, _card_id),
+    do: {:error, :game_not_playing}
+
+  @doc """
   Adds a card from the player's hand to one of their team's existing melds.
 
   The card must keep the meld valid (see `Tranca.Game.Meld.validate/1`). The team's first-meld flag must already be set.
@@ -551,9 +588,8 @@ defmodule Tranca.Game do
   end
 
   defp red_three_bonus(team) do
-    team.melds
-    |> Enum.flat_map(&Meld.red_threes/1)
-    |> Enum.reduce(0, fn _, acc -> acc + 100 end)
+    melded = Enum.flat_map(team.melds, &Meld.red_threes/1)
+    100 * (length(melded) + length(team.red_threes))
   end
 
   defp team_round_score(game, team_id) do

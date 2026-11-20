@@ -183,6 +183,21 @@
                 Meld Selected
               </button>
 
+              <%= if selected_red_three?(@current_player, @selected_card_ids) do %>
+                <button
+                  id="place-red-three"
+                  type="button"
+                  phx-click="place_red_three"
+                  disabled={not @can_act}
+                  class={[
+                    "btn btn-accent w-full sm:w-auto min-h-[2.75rem]",
+                    not @can_act && "btn-disabled"
+                  ]}
+                >
+                  Place Red 3
+                </button>
+              <% end %>
+
               <button
                 id="discard-selected"
                 type="button"

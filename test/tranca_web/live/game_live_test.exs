@@ -280,6 +280,32 @@ defmodule TrancaWeb.GameLiveTest do
       assert html =~ "only allowed for aces and 4s"
     end
 
+    test "places a selected red 3 in the team's meld area", %{conn: conn} do
+      conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-1"})
+      setup_playing_game("red-three-game", 2, ["player-1", "player-2"])
+
+      red_three = Card.new("red-three", :three, :diamonds, 5)
+      ace = Card.new("plain-ace", :ace, :spades, 15)
+
+      prepare_player_hand("red-three-game", "player-0", [red_three, ace])
+      {:ok, _game} = Games.draw_from_deck("red-three-game", "player-0")
+
+      {:ok, view, _html} = live(conn, ~p"/games/red-three-game")
+
+      view |> element("button[phx-value-card_id='plain-ace']") |> render_click()
+      refute has_element?(view, "#place-red-three")
+      view |> element("button[phx-value-card_id='plain-ace']") |> render_click()
+
+      view |> element("button[phx-value-card_id='red-three']") |> render_click()
+      view |> element("#place-red-three") |> render_click()
+
+      assert has_element?(view, "#own-melds-red-threes #red-three-red-three")
+      refute has_element?(view, "#player-hand button[phx-value-card_id='red-three']")
+
+      {:ok, game} = Games.get_game("red-three-game")
+      assert game.teams.a.red_threes == [red_three]
+    end
+
     test "disables action buttons for the non-current player", %{conn: conn} do
       conn = Plug.Test.init_test_session(conn, %{"user_id" => "player-2"})
       setup_playing_game("waiting-turn-game", 2, ["player-1", "player-2"])

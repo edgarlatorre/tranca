@@ -675,6 +675,98 @@ defmodule Tranca.GameTest do
     end
   end
 
+  describe "place_red_three/3" do
+    defp game_with_red_three do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      red_three = Card.new("r3", :three, :hearts, 5)
+      game = update_player_hand_cards(game, current_player.id, [red_three | current_player.hand])
+      {game, current_player, red_three}
+    end
+
+    test "places a red 3 in the team's meld area and draws a replacement" do
+      {game, current_player, red_three} = game_with_red_three()
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      hand_size = length(Enum.at(game.players, game.turn).hand)
+      [replacement | rest_of_deck] = game.deck
+
+      assert {:ok, game} = Game.place_red_three(game, current_player.id, red_three.id)
+
+      assert game.teams.a.red_threes == [red_three]
+      assert game.teams.a.melds == []
+      refute game.teams.a.first_meld_done
+      assert game.deck == rest_of_deck
+
+      player = Enum.at(game.players, game.turn)
+      assert length(player.hand) == hand_size
+      refute red_three in player.hand
+      assert List.last(player.hand) == replacement
+    end
+
+    test "places without a replacement when the deck is empty" do
+      {game, current_player, red_three} = game_with_red_three()
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+      game = %{game | deck: []}
+      hand_size = length(Enum.at(game.players, game.turn).hand)
+
+      assert {:ok, game} = Game.place_red_three(game, current_player.id, red_three.id)
+      assert game.teams.a.red_threes == [red_three]
+      assert length(Enum.at(game.players, game.turn).hand) == hand_size - 1
+    end
+
+    test "requires drawing first" do
+      {game, current_player, red_three} = game_with_red_three()
+
+      assert {:error, :must_draw_first} =
+               Game.place_red_three(game, current_player.id, red_three.id)
+    end
+
+    test "rejects a black 3 and any other card, leaving it in hand" do
+      game = started_game()
+      current_player = Enum.at(game.players, game.turn)
+      black_three = Card.new("b3", :three, :spades, 5)
+      ace = Card.new("ace", :ace, :hearts, 15)
+
+      game =
+        update_player_hand_cards(game, current_player.id, [black_three, ace | current_player.hand])
+
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+
+      for card <- [black_three, ace] do
+        assert {:error, :not_a_red_three} =
+                 Game.place_red_three(game, current_player.id, card.id)
+      end
+
+      assert game.teams.a.red_threes == []
+    end
+
+    test "rejects placing out of turn" do
+      {game, current_player, red_three} = game_with_red_three()
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+      other_player = Enum.find(game.players, &(&1.id != current_player.id))
+
+      assert {:error, :not_your_turn} =
+               Game.place_red_three(game, other_player.id, red_three.id)
+    end
+
+    test "rejects placing when the game is not playing" do
+      game = Game.new("game-1", 2)
+
+      assert {:error, :game_not_playing} = Game.place_red_three(game, "player-0", "r3")
+    end
+
+    test "placed red 3s earn the +100 bonus in scoring" do
+      {game, current_player, red_three} = game_with_red_three()
+      {:ok, game} = Game.draw_from_deck(game, current_player.id)
+      {:ok, game} = Game.place_red_three(game, current_player.id, red_three.id)
+
+      assert Game.round_breakdown(game).a.red_three_bonus == 100
+      assert Game.round_breakdown(game).b.red_three_bonus == 0
+      assert Game.apply_red_three_bonus(game).teams.a.score == 100
+    end
+  end
+
   describe "apply_red_three_bonus/1" do
     test "awards +100 for each red three in a team's melds" do
       game = started_game()

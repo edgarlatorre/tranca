@@ -95,6 +95,22 @@ defmodule TrancaWeb.GameLive do
     end
   end
 
+  def handle_event("place_red_three", _params, socket) do
+    case socket.assigns.selected_card_ids do
+      [card_id] ->
+        case Games.place_red_three(socket.assigns.game_id, player_id(socket), card_id) do
+          {:ok, _game} ->
+            {:noreply, assign(socket, selected_card_ids: [], message: nil)}
+
+          {:error, reason} ->
+            {:noreply, assign(socket, message: format_error(reason))}
+        end
+
+      _ ->
+        {:noreply, assign(socket, message: "Select a single red 3 to place.")}
+    end
+  end
+
   def handle_event("discard_selected", _params, socket) do
     game_id = socket.assigns.game_id
     player_id = player_id(socket)
@@ -321,6 +337,7 @@ defmodule TrancaWeb.GameLive do
   defp format_error(:must_draw_first), do: "Draw a card first."
   defp format_error(:card_not_in_hand), do: "Selected card is not in your hand."
   defp format_error(:invalid_meld), do: "Invalid meld."
+  defp format_error(:not_a_red_three), do: "Only a red 3 can be placed on its own."
 
   defp format_error(:same_rank_meld_not_allowed),
     do: "Melds of the same rank are only allowed for aces and 4s. Use a same-suit sequence."
@@ -332,6 +349,16 @@ defmodule TrancaWeb.GameLive do
   defp format_error(:invalid_replacement_card), do: "Selected card cannot replace the joker."
   defp format_error(:invalid_meld_index), do: "Invalid meld."
   defp format_error(_reason), do: "Could not perform that action."
+
+  # True when exactly one card is selected and it is a red 3.
+  defp selected_red_three?(player, [card_id]) do
+    case Enum.find(player.hand, &(&1.id == card_id)) do
+      nil -> false
+      card -> Card.red_three?(card)
+    end
+  end
+
+  defp selected_red_three?(_player, _selected_ids), do: false
 
   # Spectators see Team A as "own" (bottom) and Team B as opponents (top).
   defp own_team(nil), do: :a
