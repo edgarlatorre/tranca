@@ -81,6 +81,7 @@
         <.game_table
           deck_count={length(@game.deck)}
           discard_top={List.first(@game.discard_pile)}
+          discard_count={length(@game.discard_pile)}
           morto_count={length(@game.morto)}
           morto_taken_by={@game.morto_taken_by}
           on_draw_deck="draw_deck"
