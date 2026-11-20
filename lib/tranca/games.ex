@@ -61,24 +61,49 @@ defmodule Tranca.Games do
   @doc """
   Joins a user to the next available seat and team in a game.
 
-  Also adds the player to the running game server. Returns an error if the
-  game is full or no longer waiting.
+  Also adds the player to the running game server and notifies the lobby.
+  When the new player fills the last seat, the match starts automatically
+  (see `start_game/1`).
+
+  Joining is idempotent: a user who is already seated keeps their seat and
+  gets the current game back, so the same user can never take two seats.
+  Returns an error if the game is full or no longer waiting.
   """
   @spec join_game(String.t(), String.t()) ::
           {:ok, Game.t()} | {:error, atom()}
   def join_game(game_id, user_id) do
-    with {:ok, record} <- fetch_game_record(game_id),
-         true <- record.status == "waiting",
+    with {:ok, record} <- fetch_game_record(game_id) do
+      case get_player_record(game_id, user_id) do
+        {:ok, _player} -> get_game(game_id)
+        {:error, :player_not_found} -> seat_new_player(record, game_id, user_id)
+      end
+    end
+  end
+
+  defp seat_new_player(record, game_id, user_id) do
+    with true <- record.status == "waiting",
          {:ok, open} <- open_seats(game_id),
          true <- open > 0,
          seat <- next_seat(record.id),
          team <- seat_team(seat),
          {:ok, _player} <- add_player_record(game_id, user_id, seat, team),
          {:ok, _game} <- add_player(game_id, user_id, seat, team) do
-      get_game(game_id)
+      result = start_when_full(game_id)
+      # Notify after any auto-start so the lobby drops games that just filled.
+      Phoenix.PubSub.broadcast(Tranca.PubSub, "lobby", :lobby_updated)
+      result
     else
       false -> {:error, :game_full_or_started}
       error -> error
+    end
+  end
+
+  # Starts the match once every seat is filled. If seats are still open
+  # (or another join already started it), returns the current game.
+  defp start_when_full(game_id) do
+    case start_game(game_id) do
+      {:ok, game} -> {:ok, game}
+      {:error, _not_full_or_already_started} -> get_game(game_id)
     end
   end
 

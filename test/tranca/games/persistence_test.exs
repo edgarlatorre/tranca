@@ -108,5 +108,42 @@ defmodule Tranca.Games.PersistenceTest do
 
       assert {:error, :game_full_or_started} = Games.join_game(game_id, "user-3")
     end
+
+    test "starts the match when the last seat is filled" do
+      game_id = "game-#{System.unique_integer([:positive])}"
+      {:ok, _record} = Games.create_game_record(game_id, 2, 3000)
+      {:ok, _pid} = Games.new_game(game_id, 2)
+
+      assert {:ok, %{status: :waiting}} = Games.join_game(game_id, "user-1")
+      assert {:ok, game} = Games.join_game(game_id, "user-2")
+
+      assert game.status == :playing
+      assert Enum.all?(game.players, &(length(&1.hand) == 11))
+      assert {:ok, record} = Games.get_game_record(game_id)
+      assert record.status == "playing"
+    end
+
+    test "does not seat the same user twice" do
+      game_id = "game-#{System.unique_integer([:positive])}"
+      {:ok, _record} = Games.create_game_record(game_id, 2, 3000)
+      {:ok, _pid} = Games.new_game(game_id, 2)
+
+      {:ok, _game} = Games.join_game(game_id, "user-1")
+      assert {:ok, game} = Games.join_game(game_id, "user-1")
+
+      assert game.status == :waiting
+      assert [%{user_id: "user-1", seat: 0}] = game.players
+      assert {:ok, 1} = Games.open_seats(game_id)
+    end
+
+    test "returns the game for a seated user after the match started" do
+      game_id = "game-#{System.unique_integer([:positive])}"
+      {:ok, _record} = Games.create_game_record(game_id, 2, 3000)
+      {:ok, _pid} = Games.new_game(game_id, 2)
+      {:ok, _game} = Games.join_game(game_id, "user-1")
+      {:ok, _game} = Games.join_game(game_id, "user-2")
+
+      assert {:ok, %{status: :playing}} = Games.join_game(game_id, "user-1")
+    end
   end
 end
