@@ -103,3 +103,43 @@
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
 /* This file is for your main application CSS */
+
+/* Card back for face-down piles (deck and morto). */
+.card-back {
+  background-color: oklch(45% 0.12 255);
+  background-image:
+    repeating-linear-gradient(45deg, oklch(100% 0 0 / 0.14) 0 2px, transparent 2px 8px),
+    repeating-linear-gradient(-45deg, oklch(100% 0 0 / 0.14) 0 2px, transparent 2px 8px);
+  box-shadow: inset 0 0 0 3px oklch(100% 0 0 / 0.25);
+}
+
+/* Offset shadows that make a pile look like a stack of cards. */
+.pile-shallow {
+  box-shadow:
+    2px 2px 0 -1px var(--color-base-200),
+    2px 2px 0 0 color-mix(in oklab, var(--color-base-content) 25%, transparent);
+}
+
+.pile-deep {
+  box-shadow:
+    2px 2px 0 -1px var(--color-base-200),
+    2px 2px 0 0 color-mix(in oklab, var(--color-base-content) 25%, transparent),
+    4px 4px 0 -1px var(--color-base-200),
+    4px 4px 0 0 color-mix(in oklab, var(--color-base-content) 25%, transparent);
+}
+
+.card-back.pile-shallow {
+  box-shadow:
+    inset 0 0 0 3px oklch(100% 0 0 / 0.25),
+    2px 2px 0 -1px var(--color-base-200),
+    2px 2px 0 0 color-mix(in oklab, var(--color-base-content) 25%, transparent);
+}
+
+.card-back.pile-deep {
+  box-shadow:
+    inset 0 0 0 3px oklch(100% 0 0 / 0.25),
+    2px 2px 0 -1px var(--color-base-200),
+    2px 2px 0 0 color-mix(in oklab, var(--color-base-content) 25%, transparent),
+    4px 4px 0 -1px var(--color-base-200),
+    4px 4px 0 0 color-mix(in oklab, var(--color-base-content) 25%, transparent);
+}

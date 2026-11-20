@@ -10,11 +10,11 @@ defmodule TrancaWeb.GameComponents do
   alias Tranca.Game.Card
 
   @doc """
-  Renders a single playing card.
+  Renders a single playing card as a button.
 
   ## Examples
 
-      <.card card={%Card{rank: :ace, suit: :hearts}} selected={true} />
+      <.game_card card={%Card{rank: :ace, suit: :hearts}} selected={true} />
   """
   attr :card, Card, required: true
   attr :selected, :boolean, default: false
@@ -26,23 +26,88 @@ defmodule TrancaWeb.GameComponents do
     <button
       type="button"
       class={[
-        "relative w-11 h-15 sm:w-14 sm:h-20 rounded-lg border-2 shadow-sm flex flex-col items-center justify-center",
+        card_face_classes(@card, :md),
         "transition-transform hover:-translate-y-1 focus:outline-hidden active:scale-95",
-        "min-w-[2.75rem] min-h-[3.75rem] sm:min-w-0 sm:min-h-0",
-        red_suit?(@card) && "bg-red-50 border-red-200 text-red-700",
-        black_suit?(@card) && "bg-slate-50 border-slate-300 text-slate-800",
         @selected && "ring-2 ring-primary border-primary -translate-y-2"
       ]}
       {@rest}
     >
-      <span class="text-base sm:text-lg font-bold leading-none">{format_rank(@card.rank)}</span>
-      <span class="text-lg sm:text-xl">{format_suit(@card.suit)}</span>
-      <%= if Card.wildcard?(@card) do %>
-        <span class="absolute top-1 right-1 w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400" />
-      <% end %>
+      <.card_contents card={@card} size={:md} />
     </button>
     """
   end
+
+  @doc """
+  Renders a face-up card that is not interactive on its own, for use inside
+  another clickable element such as the discard pile.
+  """
+  attr :card, Card, required: true
+  attr :size, :atom, values: [:md, :lg], default: :md
+  attr :class, :any, default: nil
+  attr :rest, :global
+
+  def card_face(assigns) do
+    ~H"""
+    <div class={[card_face_classes(@card, @size), @class]} {@rest}>
+      <.card_contents card={@card} size={@size} />
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a face-down card (the card back), used for the deck and morto.
+  """
+  attr :size, :atom, values: [:md, :lg], default: :lg
+  attr :class, :any, default: nil
+  attr :rest, :global
+
+  def card_back(assigns) do
+    ~H"""
+    <div
+      class={[
+        "card-back rounded-lg border-2 border-white/80 shadow-sm",
+        card_size_classes(@size),
+        @class
+      ]}
+      aria-hidden="true"
+      {@rest}
+    />
+    """
+  end
+
+  attr :card, Card, required: true
+  attr :size, :atom, required: true
+
+  defp card_contents(assigns) do
+    ~H"""
+    <span class={[
+      "font-bold leading-none",
+      if(@size == :lg, do: "text-lg sm:text-2xl", else: "text-base sm:text-lg")
+    ]}>
+      {format_rank(@card.rank)}
+    </span>
+    <span class={if(@size == :lg, do: "text-xl sm:text-3xl", else: "text-lg sm:text-xl")}>
+      {format_suit(@card.suit)}
+    </span>
+    <%= if Card.wildcard?(@card) do %>
+      <span class="absolute top-1 right-1 w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400" />
+    <% end %>
+    """
+  end
+
+  defp card_face_classes(card, size) do
+    [
+      "relative rounded-lg border-2 shadow-sm flex flex-col items-center justify-center shrink-0",
+      card_size_classes(size),
+      red_suit?(card) && "bg-red-50 border-red-200 text-red-700",
+      black_suit?(card) && "bg-slate-50 border-slate-300 text-slate-800"
+    ]
+  end
+
+  defp card_size_classes(:md),
+    do: "w-11 h-15 sm:w-14 sm:h-20 min-w-[2.75rem] min-h-[3.75rem] sm:min-w-0 sm:min-h-0"
+
+  defp card_size_classes(:lg), do: "w-14 h-20 sm:w-20 sm:h-28"
 
   @doc """
   Renders a player's hand as a fanned row of selectable cards.
@@ -69,10 +134,15 @@ defmodule TrancaWeb.GameComponents do
   end
 
   @doc """
-  Renders the game table: draw pile, discard pile, and morto indicator.
+  Renders the game table as three card piles: the deck (face down), the
+  discard pile (top card face up), and the morto (face down until taken).
+
+  Clicking the deck or discard pile triggers the given draw events. The
+  discard pile looks disabled when `discard_disabled` is true.
   """
   attr :deck_count, :integer, required: true
   attr :discard_top, Card, default: nil
+  attr :discard_count, :integer, default: 0
   attr :morto_count, :integer, required: true
   attr :morto_taken_by, :atom, default: nil
   attr :on_draw_deck, :string, required: true
@@ -81,58 +151,107 @@ defmodule TrancaWeb.GameComponents do
 
   def game_table(assigns) do
     ~H"""
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+    <div
+      id="game-table"
+      class="grid grid-cols-3 gap-2 sm:gap-6 justify-items-center rounded-box bg-base-200 shadow px-2 py-4 sm:p-6"
+    >
       <button
         id="draw-deck"
         type="button"
         phx-click={@on_draw_deck}
-        class="card bg-base-200 shadow p-4 sm:p-4 flex flex-row sm:flex-col items-center justify-between sm:justify-center gap-2 hover:bg-base-300 transition min-h-[3.5rem]"
+        aria-label={"Draw from the deck (#{@deck_count} cards left)"}
+        class="group flex flex-col items-center gap-2 focus:outline-hidden"
       >
-        <span class="text-sm opacity-75">Deck</span>
-        <span class="text-2xl font-bold">{@deck_count}</span>
+        <%= if @deck_count > 0 do %>
+          <.card_back class={[
+            "transition-transform group-hover:-translate-y-1 group-focus-visible:ring-2 group-focus-visible:ring-primary group-active:scale-95",
+            pile_depth_class(@deck_count)
+          ]} />
+        <% else %>
+          <.empty_slot />
+        <% end %>
+        <.pile_label label="Deck" count={@deck_count} />
       </button>
 
       <button
+        id="draw-discard"
         type="button"
         phx-click={@on_draw_discard}
         disabled={@discard_disabled}
+        aria-label="Draw from the discard pile"
         class={[
-          "card shadow p-4 sm:p-4 flex flex-row sm:flex-col items-center justify-between sm:justify-center gap-2 transition min-h-[3.5rem]",
-          @discard_disabled && "bg-base-300 opacity-60 cursor-not-allowed",
-          not @discard_disabled && "bg-base-200 hover:bg-base-300"
+          "group flex flex-col items-center gap-2 focus:outline-hidden",
+          @discard_disabled && "cursor-not-allowed"
         ]}
       >
-        <span class="text-sm opacity-75">Discard</span>
         <%= if @discard_top do %>
-          <span class="text-2xl font-bold">
-            {format_rank(@discard_top.rank)} {format_suit(@discard_top.suit)}
-          </span>
+          <.card_face
+            id="discard-top"
+            card={@discard_top}
+            size={:lg}
+            class={[
+              "transition",
+              pile_depth_class(@discard_count),
+              @discard_disabled && "opacity-50 grayscale",
+              not @discard_disabled &&
+                "group-hover:-translate-y-1 group-focus-visible:ring-2 group-focus-visible:ring-primary group-active:scale-95"
+            ]}
+          />
         <% else %>
-          <span class="text-2xl font-bold">—</span>
+          <.empty_slot />
         <% end %>
+        <.pile_label label="Discard" count={@discard_count} />
       </button>
 
-      <div
-        id="morto-indicator"
-        class="card bg-base-200 shadow p-4 sm:p-4 flex flex-row sm:flex-col items-center justify-between sm:justify-center gap-2 min-h-[3.5rem]"
-      >
-        <span class="text-sm opacity-75">Morto</span>
-        <span class="text-2xl font-bold">
-          <%= if @morto_taken_by do %>
-            Taken
-          <% else %>
-            {@morto_count}
-          <% end %>
-        </span>
+      <div id="morto-indicator" class="flex flex-col items-center gap-2">
         <%= if @morto_taken_by do %>
-          <span class="text-xs badge badge-sm badge-info">
-            Team {String.upcase(to_string(@morto_taken_by))}
+          <.empty_slot>
+            <span class="text-xs font-semibold">Taken</span>
+          </.empty_slot>
+          <span class="flex flex-col items-center leading-tight">
+            <span class="text-xs sm:text-sm font-medium opacity-75">Morto</span>
+            <span class="badge badge-sm badge-info">
+              Team {String.upcase(to_string(@morto_taken_by))}
+            </span>
           </span>
+        <% else %>
+          <.card_back class={pile_depth_class(@morto_count)} />
+          <.pile_label label="Morto" count={@morto_count} />
         <% end %>
       </div>
     </div>
     """
   end
+
+  attr :label, :string, required: true
+  attr :count, :integer, required: true
+
+  defp pile_label(assigns) do
+    ~H"""
+    <span class="flex flex-col items-center leading-tight">
+      <span class="text-xs sm:text-sm font-medium opacity-75">{@label}</span>
+      <span class="text-base sm:text-lg font-bold tabular-nums">{@count}</span>
+    </span>
+    """
+  end
+
+  slot :inner_block
+
+  defp empty_slot(assigns) do
+    ~H"""
+    <div class={[
+      "rounded-lg border-2 border-dashed border-base-content/25 flex items-center justify-center text-base-content/50",
+      card_size_classes(:lg)
+    ]}>
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  # Stacked-card shadow that hints at how many cards are in a pile.
+  defp pile_depth_class(count) when count > 10, do: "pile-deep"
+  defp pile_depth_class(count) when count > 1, do: "pile-shallow"
+  defp pile_depth_class(_count), do: nil
 
   @doc """
   Renders one team's melds.
